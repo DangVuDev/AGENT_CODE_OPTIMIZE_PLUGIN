@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "exists": {
+      "title": "Exists",
+      "type": "boolean"
+    },
+    "kind": {
+      "enum": [
+        "file",
+        "symbol",
+        "config_key",
+        "prompt",
+        "dependency"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "path_or_symbol": {
+      "minLength": 1,
+      "title": "Path Or Symbol",
+      "type": "string"
+    },
+    "proposed_creation": {
+      "default": false,
+      "title": "Proposed Creation",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "path_or_symbol",
+    "kind",
+    "exists"
+  ],
+  "title": "ScopeResolutionEntry",
+  "type": "object"
+}

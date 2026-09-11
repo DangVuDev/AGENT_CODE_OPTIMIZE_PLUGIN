@@ -1,0 +1,266 @@
+{
+  "$defs": {
+    "OwnershipBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "code_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Owner"
+        },
+        "conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Conflicts",
+          "type": "array"
+        },
+        "decision_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Owner"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "service_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Service Owner"
+        }
+      },
+      "required": [
+        "binding_id",
+        "resolved"
+      ],
+      "title": "OwnershipBinding",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "SourceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "git_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Revision"
+        },
+        "repository_id": {
+          "minLength": 1,
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "unresolved_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unresolved Reason"
+        }
+      },
+      "required": [
+        "binding_id",
+        "repository_id",
+        "resolved"
+      ],
+      "title": "SourceBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Envelope: detection report + owner/source binding + OptimizationRequest + A2 artifacts.\n\nConstituent artifacts are referenced by content digest rather than\nembedded, following the same linkage convention as `BaselineSnapshot`\nand `EvidenceBundle` in `a2.py`.",
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "QualifiedOpportunity",
+      "default": "QualifiedOpportunity",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "baseline_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Baseline Digest",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "case_start_id": {
+      "minLength": 1,
+      "title": "Case Start Id",
+      "type": "string"
+    },
+    "comparability_report_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Comparability Report Digest",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "detection_report_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Detection Report Digest",
+      "type": "string"
+    },
+    "evidence_bundle_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Evidence Bundle Digest",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "owner_binding": {
+      "$ref": "#/$defs/OwnershipBinding"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "request_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_binding": {
+      "$ref": "#/$defs/SourceBinding"
+    },
+    "source_snapshot_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Snapshot Digest",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "detection_report_digest",
+    "request_digest",
+    "source_snapshot_digest",
+    "baseline_digest",
+    "evidence_bundle_digest",
+    "comparability_report_digest",
+    "source_binding",
+    "owner_binding",
+    "case_start_id"
+  ],
+  "title": "QualifiedOpportunity",
+  "type": "object"
+}

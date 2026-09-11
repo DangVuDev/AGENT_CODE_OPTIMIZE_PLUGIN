@@ -1,0 +1,27 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "after": {
+      "minLength": 1,
+      "title": "After",
+      "type": "string"
+    },
+    "before": {
+      "minLength": 1,
+      "title": "Before",
+      "type": "string"
+    },
+    "variable": {
+      "minLength": 1,
+      "title": "Variable",
+      "type": "string"
+    }
+  },
+  "required": [
+    "variable",
+    "before",
+    "after"
+  ],
+  "title": "Treatment",
+  "type": "object"
+}

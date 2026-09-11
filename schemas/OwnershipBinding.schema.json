@@ -1,0 +1,63 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "binding_id": {
+      "minLength": 1,
+      "title": "Binding Id",
+      "type": "string"
+    },
+    "code_owner": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Code Owner"
+    },
+    "conflicts": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Conflicts",
+      "type": "array"
+    },
+    "decision_owner": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Decision Owner"
+    },
+    "resolved": {
+      "title": "Resolved",
+      "type": "boolean"
+    },
+    "service_owner": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Service Owner"
+    }
+  },
+  "required": [
+    "binding_id",
+    "resolved"
+  ],
+  "title": "OwnershipBinding",
+  "type": "object"
+}

@@ -1,0 +1,91 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "analyzer": {
+      "minLength": 1,
+      "title": "Analyzer",
+      "type": "string"
+    },
+    "analyzer_version": {
+      "minLength": 1,
+      "title": "Analyzer Version",
+      "type": "string"
+    },
+    "coverage": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Coverage",
+      "type": "number"
+    },
+    "description": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "observation_id": {
+      "minLength": 1,
+      "title": "Observation Id",
+      "type": "string"
+    },
+    "polarity": {
+      "enum": [
+        "positive",
+        "negative"
+      ],
+      "title": "Polarity",
+      "type": "string"
+    },
+    "problem_signal_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Problem Signal Ids",
+      "type": "array"
+    },
+    "source": {
+      "enum": [
+        "syntax",
+        "semantic",
+        "domain",
+        "runtime"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "symbols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Symbols",
+      "type": "array"
+    }
+  },
+  "required": [
+    "observation_id",
+    "source",
+    "analyzer",
+    "analyzer_version",
+    "problem_signal_ids",
+    "description",
+    "polarity",
+    "coverage"
+  ],
+  "title": "AnalyzerObservation",
+  "type": "object"
+}

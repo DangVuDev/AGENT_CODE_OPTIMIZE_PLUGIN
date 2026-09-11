@@ -1,0 +1,34 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed": {
+      "title": "Allowed",
+      "type": "boolean"
+    },
+    "decision": {
+      "minLength": 1,
+      "title": "Decision",
+      "type": "string"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    }
+  },
+  "required": [
+    "allowed",
+    "decision",
+    "policy_version",
+    "reasons"
+  ],
+  "title": "PolicyDecision",
+  "type": "object"
+}

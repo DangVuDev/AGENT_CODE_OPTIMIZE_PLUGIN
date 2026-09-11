@@ -1,0 +1,308 @@
+{
+  "$defs": {
+    "DigestChainLink": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Artifact Digest",
+          "type": "string"
+        },
+        "artifact_type": {
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "expected_parent_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Parent Digest"
+        },
+        "linked": {
+          "title": "Linked",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "artifact_digest",
+        "linked"
+      ],
+      "title": "DigestChainLink",
+      "type": "object"
+    },
+    "DimensionEquivalenceVerdict": {
+      "additionalProperties": false,
+      "properties": {
+        "dimension": {
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "equivalent": {
+          "title": "Equivalent",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "dimension",
+        "equivalent"
+      ],
+      "title": "DimensionEquivalenceVerdict",
+      "type": "object"
+    },
+    "FreshnessCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "checked_at": {
+          "format": "date-time",
+          "title": "Checked At",
+          "type": "string"
+        },
+        "dimension": {
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "expires_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        },
+        "fresh": {
+          "title": "Fresh",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dimension",
+        "fresh",
+        "checked_at"
+      ],
+      "title": "FreshnessCheck",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "SchemaValidationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_type": {
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "errors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Errors",
+          "type": "array"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "valid": {
+          "title": "Valid",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "valid"
+      ],
+      "title": "SchemaValidationResult",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "ConvergenceDecision",
+      "default": "ConvergenceDecision",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "converged": {
+      "title": "Converged",
+      "type": "boolean"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "digest_chain": {
+      "items": {
+        "$ref": "#/$defs/DigestChainLink"
+      },
+      "minItems": 1,
+      "title": "Digest Chain",
+      "type": "array"
+    },
+    "eligible_solution_count": {
+      "minimum": 0,
+      "title": "Eligible Solution Count",
+      "type": "integer"
+    },
+    "equivalence_verdicts": {
+      "items": {
+        "$ref": "#/$defs/DimensionEquivalenceVerdict"
+      },
+      "minItems": 1,
+      "title": "Equivalence Verdicts",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "freshness_checks": {
+      "items": {
+        "$ref": "#/$defs/FreshnessCheck"
+      },
+      "minItems": 1,
+      "title": "Freshness Checks",
+      "type": "array"
+    },
+    "origin": {
+      "enum": [
+        "manual",
+        "automatic"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "schema_results": {
+      "items": {
+        "$ref": "#/$defs/SchemaValidationResult"
+      },
+      "minItems": 1,
+      "title": "Schema Results",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "origin",
+    "schema_results",
+    "digest_chain",
+    "equivalence_verdicts",
+    "freshness_checks",
+    "eligible_solution_count",
+    "converged"
+  ],
+  "title": "ConvergenceDecision",
+  "type": "object"
+}

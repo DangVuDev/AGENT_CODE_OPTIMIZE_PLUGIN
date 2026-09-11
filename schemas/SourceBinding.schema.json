@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "binding_id": {
+      "minLength": 1,
+      "title": "Binding Id",
+      "type": "string"
+    },
+    "git_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Revision"
+    },
+    "repository_id": {
+      "minLength": 1,
+      "title": "Repository Id",
+      "type": "string"
+    },
+    "resolved": {
+      "title": "Resolved",
+      "type": "boolean"
+    },
+    "unresolved_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unresolved Reason"
+    }
+  },
+  "required": [
+    "binding_id",
+    "repository_id",
+    "resolved"
+  ],
+  "title": "SourceBinding",
+  "type": "object"
+}

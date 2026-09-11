@@ -1,0 +1,73 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed_decisions": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Decisions",
+      "type": "array"
+    },
+    "artifact_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Artifact Digest",
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "interrupt_id": {
+      "minLength": 1,
+      "title": "Interrupt Id",
+      "type": "string"
+    },
+    "issued_at": {
+      "format": "date-time",
+      "title": "Issued At",
+      "type": "string"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "required_actor_role": {
+      "minLength": 1,
+      "title": "Required Actor Role",
+      "type": "string"
+    },
+    "stage": {
+      "minLength": 1,
+      "title": "Stage",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "interrupt_id",
+    "case_id",
+    "thread_id",
+    "stage",
+    "artifact_digest",
+    "allowed_decisions",
+    "required_actor_role",
+    "policy_version",
+    "issued_at",
+    "expires_at"
+  ],
+  "title": "InterruptEnvelope",
+  "type": "object"
+}

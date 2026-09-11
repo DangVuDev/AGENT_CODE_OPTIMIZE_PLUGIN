@@ -1,0 +1,96 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "baseline_value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Baseline Value"
+    },
+    "description": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "detected_at": {
+      "format": "date-time",
+      "title": "Detected At",
+      "type": "string"
+    },
+    "effect_size": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effect Size"
+    },
+    "metric_id": {
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "observed_value": {
+      "title": "Observed Value",
+      "type": "number"
+    },
+    "run_group_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Run Group Ids",
+      "type": "array"
+    },
+    "severity": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Severity",
+      "type": "number"
+    },
+    "signal_id": {
+      "minLength": 1,
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "signal_kind": {
+      "enum": [
+        "threshold",
+        "regression",
+        "hotspot",
+        "llm_quality"
+      ],
+      "title": "Signal Kind",
+      "type": "string"
+    },
+    "unit": {
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "signal_id",
+    "signal_kind",
+    "run_group_ids",
+    "metric_id",
+    "description",
+    "observed_value",
+    "unit",
+    "severity",
+    "detected_at"
+  ],
+  "title": "DetectionSignal",
+  "type": "object"
+}

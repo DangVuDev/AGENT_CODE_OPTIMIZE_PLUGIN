@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "benchmark_protocol": {
+      "minLength": 1,
+      "title": "Benchmark Protocol",
+      "type": "string"
+    },
+    "expected_metric_movements": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Expected Metric Movements",
+      "type": "object"
+    },
+    "plan_id": {
+      "minLength": 1,
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "stop_conditions": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Stop Conditions",
+      "type": "array"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "test_command_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Test Command Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "plan_id",
+    "strategy_id",
+    "benchmark_protocol",
+    "stop_conditions"
+  ],
+  "title": "ValidationPlan",
+  "type": "object"
+}

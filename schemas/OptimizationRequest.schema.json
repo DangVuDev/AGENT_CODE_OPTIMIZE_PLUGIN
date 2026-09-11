@@ -1,0 +1,529 @@
+{
+  "$defs": {
+    "ApprovalBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "minLength": 1,
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "actor_role": {
+          "minLength": 1,
+          "title": "Actor Role",
+          "type": "string"
+        },
+        "approval_id": {
+          "minLength": 1,
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "artifact_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Artifact Digest",
+          "type": "string"
+        },
+        "decision": {
+          "enum": [
+            "approve",
+            "reject"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "policy_version": {
+          "minLength": 1,
+          "title": "Policy Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "approval_id",
+        "actor_id",
+        "actor_role",
+        "decision",
+        "artifact_digest",
+        "policy_version"
+      ],
+      "title": "ApprovalBinding",
+      "type": "object"
+    },
+    "Criterion": {
+      "additionalProperties": false,
+      "properties": {
+        "criterion_id": {
+          "minLength": 1,
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "minimize",
+            "maximize",
+            "target"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "metric_id": {
+          "minLength": 1,
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "number"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "weight": {
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "metric_id",
+        "direction",
+        "target",
+        "unit",
+        "weight"
+      ],
+      "title": "Criterion",
+      "type": "object"
+    },
+    "EvidenceRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_source_types": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Accepted Source Types",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "mandatory": {
+          "default": true,
+          "title": "Mandatory",
+          "type": "boolean"
+        },
+        "minimum_samples": {
+          "minimum": 1,
+          "title": "Minimum Samples",
+          "type": "integer"
+        },
+        "requirement_id": {
+          "minLength": 1,
+          "title": "Requirement Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "criterion_id",
+        "accepted_source_types",
+        "minimum_samples"
+      ],
+      "title": "EvidenceRequirement",
+      "type": "object"
+    },
+    "ExecutionBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_analyzers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Analyzers",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "deadline_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Deadline Seconds",
+          "type": "integer"
+        },
+        "maximum_model_tokens": {
+          "minimum": 0,
+          "title": "Maximum Model Tokens",
+          "type": "integer"
+        },
+        "maximum_storage_bytes": {
+          "minimum": 0,
+          "title": "Maximum Storage Bytes",
+          "type": "integer"
+        },
+        "maximum_worker_seconds": {
+          "minimum": 0,
+          "title": "Maximum Worker Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deadline_seconds",
+        "maximum_worker_seconds",
+        "maximum_model_tokens",
+        "maximum_storage_bytes"
+      ],
+      "title": "ExecutionBudget",
+      "type": "object"
+    },
+    "Guardrail": {
+      "additionalProperties": false,
+      "properties": {
+        "guardrail_id": {
+          "minLength": 1,
+          "title": "Guardrail Id",
+          "type": "string"
+        },
+        "metric_id": {
+          "minLength": 1,
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "operator": {
+          "enum": [
+            "lt",
+            "lte",
+            "eq",
+            "gte",
+            "gt"
+          ],
+          "title": "Operator",
+          "type": "string"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "guardrail_id",
+        "metric_id",
+        "operator",
+        "threshold",
+        "unit"
+      ],
+      "title": "Guardrail",
+      "type": "object"
+    },
+    "Objective": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "minLength": 1,
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "statement": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "statement",
+        "feature_id"
+      ],
+      "title": "Objective",
+      "type": "object"
+    },
+    "Origin": {
+      "enum": [
+        "manual",
+        "automatic"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "ScopeProfile": {
+      "enum": [
+        "local_sandbox",
+        "connected_production"
+      ],
+      "title": "ScopeProfile",
+      "type": "string"
+    },
+    "SourceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_root_id": {
+          "minLength": 1,
+          "title": "Allowed Root Id",
+          "type": "string"
+        },
+        "relative_path": {
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "repository_id": {
+          "minLength": 1,
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "requested_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requested Revision"
+        }
+      },
+      "required": [
+        "repository_id",
+        "allowed_root_id",
+        "relative_path"
+      ],
+      "title": "SourceReference",
+      "type": "object"
+    },
+    "WorkloadContract": {
+      "additionalProperties": false,
+      "properties": {
+        "cache_state": {
+          "minLength": 1,
+          "title": "Cache State",
+          "type": "string"
+        },
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "concurrency": {
+          "minimum": 1,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "dataset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Id"
+        },
+        "environment_id": {
+          "minLength": 1,
+          "title": "Environment Id",
+          "type": "string"
+        },
+        "repetitions": {
+          "minimum": 1,
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "warmup_runs": {
+          "minimum": 0,
+          "title": "Warmup Runs",
+          "type": "integer"
+        },
+        "workload_id": {
+          "minLength": 1,
+          "title": "Workload Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workload_id",
+        "environment_id",
+        "repetitions",
+        "warmup_runs",
+        "concurrency",
+        "cache_state"
+      ],
+      "title": "WorkloadContract",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "approval": {
+      "$ref": "#/$defs/ApprovalBinding"
+    },
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "OptimizationRequest",
+      "default": "OptimizationRequest",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/ExecutionBudget"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "criteria": {
+      "items": {
+        "$ref": "#/$defs/Criterion"
+      },
+      "minItems": 1,
+      "title": "Criteria",
+      "type": "array"
+    },
+    "evidence_requirements": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRequirement"
+      },
+      "minItems": 1,
+      "title": "Evidence Requirements",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "guardrails": {
+      "items": {
+        "$ref": "#/$defs/Guardrail"
+      },
+      "title": "Guardrails",
+      "type": "array"
+    },
+    "objective": {
+      "$ref": "#/$defs/Objective"
+    },
+    "origin": {
+      "$ref": "#/$defs/Origin"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "request_fingerprint": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Fingerprint",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope_profile": {
+      "$ref": "#/$defs/ScopeProfile"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceReference"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "workload": {
+      "$ref": "#/$defs/WorkloadContract"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "origin",
+    "scope_profile",
+    "source",
+    "objective",
+    "criteria",
+    "workload",
+    "evidence_requirements",
+    "budget",
+    "approval",
+    "request_fingerprint"
+  ],
+  "title": "OptimizationRequest",
+  "type": "object"
+}

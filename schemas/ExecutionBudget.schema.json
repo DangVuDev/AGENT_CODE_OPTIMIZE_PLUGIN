@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed_analyzers": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Analyzers",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "deadline_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Deadline Seconds",
+      "type": "integer"
+    },
+    "maximum_model_tokens": {
+      "minimum": 0,
+      "title": "Maximum Model Tokens",
+      "type": "integer"
+    },
+    "maximum_storage_bytes": {
+      "minimum": 0,
+      "title": "Maximum Storage Bytes",
+      "type": "integer"
+    },
+    "maximum_worker_seconds": {
+      "minimum": 0,
+      "title": "Maximum Worker Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "deadline_seconds",
+    "maximum_worker_seconds",
+    "maximum_model_tokens",
+    "maximum_storage_bytes"
+  ],
+  "title": "ExecutionBudget",
+  "type": "object"
+}

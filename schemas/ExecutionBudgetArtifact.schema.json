@@ -1,0 +1,153 @@
+{
+  "$defs": {
+    "ExecutionBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_analyzers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Analyzers",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "deadline_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Deadline Seconds",
+          "type": "integer"
+        },
+        "maximum_model_tokens": {
+          "minimum": 0,
+          "title": "Maximum Model Tokens",
+          "type": "integer"
+        },
+        "maximum_storage_bytes": {
+          "minimum": 0,
+          "title": "Maximum Storage Bytes",
+          "type": "integer"
+        },
+        "maximum_worker_seconds": {
+          "minimum": 0,
+          "title": "Maximum Worker Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deadline_seconds",
+        "maximum_worker_seconds",
+        "maximum_model_tokens",
+        "maximum_storage_bytes"
+      ],
+      "title": "ExecutionBudget",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "ExecutionBudgetArtifact",
+      "default": "ExecutionBudgetArtifact",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/ExecutionBudget"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "budget",
+    "policy_version"
+  ],
+  "title": "ExecutionBudgetArtifact",
+  "type": "object"
+}

@@ -1,0 +1,124 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Compact pointer allowed in graph state; never embeds raw artifact data.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "artifact_id",
+        "content_digest",
+        "uri"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "INPUT_INVALID",
+        "SOURCE_INVALID",
+        "POLICY_DENIED",
+        "APPROVAL_REQUIRED",
+        "APPROVAL_EXPIRED",
+        "SOURCE_UNAVAILABLE",
+        "SOURCE_CHANGED",
+        "SOURCE_UNRESOLVED",
+        "OWNER_UNRESOLVED",
+        "NO_DATA",
+        "INCOMPARABLE",
+        "ANALYZER_FAILED",
+        "MODEL_OUTPUT_INVALID",
+        "SANDBOX_FAILED",
+        "STALE_OPPORTUNITY",
+        "STALE_CASE",
+        "ARTIFACT_MISMATCH",
+        "NO_ACTIONABLE_PROBLEM",
+        "NO_ELIGIBLE_STRATEGY",
+        "NO_SELECTABLE_STRATEGY",
+        "SCOPE_VIOLATION",
+        "GUARDRAIL_FAILED",
+        "BUDGET_EXHAUSTED",
+        "ROLLBACK_FAILED",
+        "INTERNAL_ERROR"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "code": {
+      "$ref": "#/$defs/ErrorCode"
+    },
+    "diagnostic_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "message": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+    },
+    "node_id": {
+      "minLength": 1,
+      "title": "Node Id",
+      "type": "string"
+    },
+    "retryable": {
+      "title": "Retryable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "node_id",
+    "code",
+    "message",
+    "retryable",
+    "attempt"
+  ],
+  "title": "NodeError",
+  "type": "object"
+}

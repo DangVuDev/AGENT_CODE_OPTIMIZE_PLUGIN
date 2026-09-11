@@ -1,0 +1,73 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "count": {
+      "minimum": 1,
+      "title": "Count",
+      "type": "integer"
+    },
+    "maximum": {
+      "title": "Maximum",
+      "type": "number"
+    },
+    "mean": {
+      "title": "Mean",
+      "type": "number"
+    },
+    "metric_id": {
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "minimum": {
+      "title": "Minimum",
+      "type": "number"
+    },
+    "percentile_50": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Percentile 50"
+    },
+    "percentile_95": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Percentile 95"
+    },
+    "sample_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Sample Ids",
+      "type": "array"
+    },
+    "unit": {
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "metric_id",
+    "unit",
+    "sample_ids",
+    "count",
+    "minimum",
+    "maximum",
+    "mean"
+  ],
+  "title": "MetricAggregate",
+  "type": "object"
+}

@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": {
+      "minLength": 1,
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "statement": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Statement",
+      "type": "string"
+    }
+  },
+  "required": [
+    "statement",
+    "feature_id"
+  ],
+  "title": "Objective",
+  "type": "object"
+}

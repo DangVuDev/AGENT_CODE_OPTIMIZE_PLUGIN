@@ -1,0 +1,287 @@
+{
+  "$defs": {
+    "Origin": {
+      "enum": [
+        "manual",
+        "automatic"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "RawRequestDraft",
+      "default": "RawRequestDraft",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "command_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command Id"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Id"
+    },
+    "direction": {
+      "anyOf": [
+        {
+          "enum": [
+            "minimize",
+            "maximize",
+            "target"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Direction"
+    },
+    "environment_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Environment Id"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "extraction_confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Extraction Confidence",
+      "type": "number"
+    },
+    "feature_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Feature Id"
+    },
+    "guardrail_metric_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Guardrail Metric Id"
+    },
+    "metric_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Metric Id"
+    },
+    "objective_statement": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Objective Statement"
+    },
+    "origin": {
+      "$ref": "#/$defs/Origin"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "requester_hypothesis": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requester Hypothesis"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    },
+    "unresolved_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Fields",
+      "type": "array"
+    },
+    "workload_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workload Id"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "origin",
+    "extraction_confidence"
+  ],
+  "title": "RawRequestDraft",
+  "type": "object"
+}

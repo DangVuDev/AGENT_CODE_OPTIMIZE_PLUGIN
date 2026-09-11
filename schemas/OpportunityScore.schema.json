@@ -1,0 +1,70 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "addressability": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Addressability",
+      "type": "number"
+    },
+    "business_impact": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Business Impact",
+      "type": "number"
+    },
+    "composite": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Composite",
+      "type": "number"
+    },
+    "evidence_trust": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Evidence Trust",
+      "type": "number"
+    },
+    "frequency": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Frequency",
+      "type": "number"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "score_id": {
+      "minLength": 1,
+      "title": "Score Id",
+      "type": "string"
+    },
+    "severity": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Severity",
+      "type": "number"
+    },
+    "strategic_priority": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Strategic Priority",
+      "type": "number"
+    }
+  },
+  "required": [
+    "score_id",
+    "severity",
+    "frequency",
+    "business_impact",
+    "evidence_trust",
+    "addressability",
+    "strategic_priority",
+    "composite",
+    "policy_version"
+  ],
+  "title": "OpportunityScore",
+  "type": "object"
+}

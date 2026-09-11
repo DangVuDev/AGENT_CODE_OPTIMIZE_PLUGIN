@@ -1,0 +1,69 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "cache_state": {
+      "minLength": 1,
+      "title": "Cache State",
+      "type": "string"
+    },
+    "command_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command Id"
+    },
+    "concurrency": {
+      "minimum": 1,
+      "title": "Concurrency",
+      "type": "integer"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Id"
+    },
+    "environment_id": {
+      "minLength": 1,
+      "title": "Environment Id",
+      "type": "string"
+    },
+    "repetitions": {
+      "minimum": 1,
+      "title": "Repetitions",
+      "type": "integer"
+    },
+    "warmup_runs": {
+      "minimum": 0,
+      "title": "Warmup Runs",
+      "type": "integer"
+    },
+    "workload_id": {
+      "minLength": 1,
+      "title": "Workload Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workload_id",
+    "environment_id",
+    "repetitions",
+    "warmup_runs",
+    "concurrency",
+    "cache_state"
+  ],
+  "title": "WorkloadContract",
+  "type": "object"
+}

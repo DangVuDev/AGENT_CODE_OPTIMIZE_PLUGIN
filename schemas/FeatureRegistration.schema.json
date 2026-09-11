@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": {
+      "minLength": 1,
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Paths",
+      "type": "array"
+    },
+    "repository_id": {
+      "minLength": 1,
+      "title": "Repository Id",
+      "type": "string"
+    },
+    "service_names": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Service Names",
+      "type": "array"
+    },
+    "symbols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Symbols",
+      "type": "array"
+    }
+  },
+  "required": [
+    "feature_id",
+    "repository_id"
+  ],
+  "title": "FeatureRegistration",
+  "type": "object"
+}

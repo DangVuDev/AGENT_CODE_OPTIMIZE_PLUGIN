@@ -1,0 +1,73 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "assessment_id": {
+      "minLength": 1,
+      "title": "Assessment Id",
+      "type": "string"
+    },
+    "blast_radius": {
+      "minLength": 1,
+      "title": "Blast Radius",
+      "type": "string"
+    },
+    "factors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Factors",
+      "type": "array"
+    },
+    "migration_impact": {
+      "title": "Migration Impact",
+      "type": "boolean"
+    },
+    "reversibility": {
+      "enum": [
+        "instant",
+        "fast",
+        "slow",
+        "irreversible"
+      ],
+      "title": "Reversibility",
+      "type": "string"
+    },
+    "risk_tier": {
+      "enum": [
+        "experiment_config",
+        "prompt",
+        "code",
+        "architecture"
+      ],
+      "title": "Risk Tier",
+      "type": "string"
+    },
+    "security_impact": {
+      "title": "Security Impact",
+      "type": "boolean"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "uncertainty": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Uncertainty",
+      "type": "number"
+    }
+  },
+  "required": [
+    "assessment_id",
+    "strategy_id",
+    "risk_tier",
+    "blast_radius",
+    "reversibility",
+    "uncertainty",
+    "migration_impact",
+    "security_impact"
+  ],
+  "title": "RiskAssessment",
+  "type": "object"
+}

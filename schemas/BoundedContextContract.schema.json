@@ -1,0 +1,70 @@
+{
+  "$defs": {
+    "DataClassification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "title": "DataClassification",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "allow_raw_source": {
+      "default": false,
+      "title": "Allow Raw Source",
+      "type": "boolean"
+    },
+    "allow_secrets": {
+      "const": false,
+      "default": false,
+      "title": "Allow Secrets",
+      "type": "boolean"
+    },
+    "allowed_artifact_types": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Allowed Artifact Types",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "allowed_classifications": {
+      "items": {
+        "$ref": "#/$defs/DataClassification"
+      },
+      "minItems": 1,
+      "title": "Allowed Classifications",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "context_id": {
+      "minLength": 1,
+      "title": "Context Id",
+      "type": "string"
+    },
+    "maximum_bytes": {
+      "exclusiveMinimum": 0,
+      "title": "Maximum Bytes",
+      "type": "integer"
+    },
+    "redaction_profile_id": {
+      "minLength": 1,
+      "title": "Redaction Profile Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "context_id",
+    "maximum_bytes",
+    "allowed_classifications",
+    "redaction_profile_id",
+    "allowed_artifact_types"
+  ],
+  "title": "BoundedContextContract",
+  "type": "object"
+}

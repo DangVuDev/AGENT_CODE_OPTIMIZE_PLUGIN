@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "Treatment": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "minLength": 1,
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "minLength": 1,
+          "title": "Before",
+          "type": "string"
+        },
+        "variable": {
+          "minLength": 1,
+          "title": "Variable",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variable",
+        "before",
+        "after"
+      ],
+      "title": "Treatment",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "expected_observations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Expected Observations",
+      "type": "array"
+    },
+    "phase_id": {
+      "minLength": 1,
+      "title": "Phase Id",
+      "type": "string"
+    },
+    "phase_kind": {
+      "enum": [
+        "diagnostic",
+        "implementation"
+      ],
+      "title": "Phase Kind",
+      "type": "string"
+    },
+    "risk_factors": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Risk Factors",
+      "type": "array"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "treatment": {
+      "$ref": "#/$defs/Treatment"
+    }
+  },
+  "required": [
+    "phase_id",
+    "sequence",
+    "phase_kind",
+    "treatment"
+  ],
+  "title": "ExperimentPhaseTemplate",
+  "type": "object"
+}

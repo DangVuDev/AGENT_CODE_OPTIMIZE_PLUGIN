@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "command_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command Id"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Id"
+    },
+    "environment_id": {
+      "minLength": 1,
+      "title": "Environment Id",
+      "type": "string"
+    },
+    "maximum_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Maximum Seconds",
+      "type": "integer"
+    },
+    "workload_id": {
+      "minLength": 1,
+      "title": "Workload Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workload_id",
+    "environment_id",
+    "maximum_seconds"
+  ],
+  "title": "WorkloadRegistration",
+  "type": "object"
+}

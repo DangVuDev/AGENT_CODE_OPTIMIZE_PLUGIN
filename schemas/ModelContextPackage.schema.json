@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "TruncationReport": {
+      "additionalProperties": false,
+      "properties": {
+        "omitted_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Omitted Evidence Ids",
+          "type": "array"
+        },
+        "omitted_source_regions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Omitted Source Regions",
+          "type": "array"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "truncated"
+      ],
+      "title": "TruncationReport",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "counterevidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Counterevidence Ids",
+      "type": "array"
+    },
+    "criteria_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Criteria Ids",
+      "type": "array"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "package_id": {
+      "minLength": 1,
+      "title": "Package Id",
+      "type": "string"
+    },
+    "redacted_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Redacted Fields",
+      "type": "array"
+    },
+    "source_regions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Regions",
+      "type": "array"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "truncation_report": {
+      "$ref": "#/$defs/TruncationReport"
+    }
+  },
+  "required": [
+    "package_id",
+    "strategy_id",
+    "evidence_ids",
+    "criteria_ids",
+    "truncation_report"
+  ],
+  "title": "ModelContextPackage",
+  "type": "object"
+}

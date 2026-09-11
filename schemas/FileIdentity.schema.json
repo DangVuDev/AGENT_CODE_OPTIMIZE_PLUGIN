@@ -1,0 +1,26 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "executable": {
+      "default": false,
+      "title": "Executable",
+      "type": "boolean"
+    },
+    "relative_path": {
+      "minLength": 1,
+      "title": "Relative Path",
+      "type": "string"
+    }
+  },
+  "required": [
+    "relative_path",
+    "content_digest"
+  ],
+  "title": "FileIdentity",
+  "type": "object"
+}

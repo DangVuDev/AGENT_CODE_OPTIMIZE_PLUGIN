@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "judge_id": {
+      "minLength": 1,
+      "title": "Judge Id",
+      "type": "string"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Reasons",
+      "type": "array"
+    },
+    "verdict": {
+      "enum": [
+        "accept",
+        "reject"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    }
+  },
+  "required": [
+    "judge_id",
+    "finding_id",
+    "verdict",
+    "reasons",
+    "model_id",
+    "model_version"
+  ],
+  "title": "FindingJudgement",
+  "type": "object"
+}

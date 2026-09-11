@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "decision_type": {
+      "minLength": 1,
+      "title": "Decision Type",
+      "type": "string"
+    },
+    "facts": {
+      "additionalProperties": true,
+      "title": "Facts",
+      "type": "object"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision_type",
+    "policy_version",
+    "tenant_id",
+    "facts"
+  ],
+  "title": "PolicyRequest",
+  "type": "object"
+}

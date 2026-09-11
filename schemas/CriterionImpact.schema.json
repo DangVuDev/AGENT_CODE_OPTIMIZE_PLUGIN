@@ -1,0 +1,66 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "basis": {
+      "enum": [
+        "measured",
+        "forecast"
+      ],
+      "title": "Basis",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "criterion_id": {
+      "minLength": 1,
+      "title": "Criterion Id",
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "improves",
+        "worsens",
+        "neutral",
+        "unknown"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "magnitude": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Magnitude"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    }
+  },
+  "required": [
+    "criterion_id",
+    "direction",
+    "confidence",
+    "basis"
+  ],
+  "title": "CriterionImpact",
+  "type": "object"
+}

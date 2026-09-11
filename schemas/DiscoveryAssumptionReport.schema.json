@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "DiscoveryAssumption": {
+      "additionalProperties": false,
+      "properties": {
+        "assumption_id": {
+          "minLength": 1,
+          "title": "Assumption Id",
+          "type": "string"
+        },
+        "basis": {
+          "enum": [
+            "detected_fact",
+            "inferred_context"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "statement": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "verified": {
+          "title": "Verified",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "assumption_id",
+        "statement",
+        "basis",
+        "verified"
+      ],
+      "title": "DiscoveryAssumption",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assumptions": {
+      "items": {
+        "$ref": "#/$defs/DiscoveryAssumption"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "feature_binding_confirmed": {
+      "title": "Feature Binding Confirmed",
+      "type": "boolean"
+    },
+    "owner_binding_confirmed": {
+      "title": "Owner Binding Confirmed",
+      "type": "boolean"
+    },
+    "report_id": {
+      "minLength": 1,
+      "title": "Report Id",
+      "type": "string"
+    },
+    "source_binding_confirmed": {
+      "title": "Source Binding Confirmed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "report_id",
+    "feature_binding_confirmed",
+    "source_binding_confirmed",
+    "owner_binding_confirmed"
+  ],
+  "title": "DiscoveryAssumptionReport",
+  "type": "object"
+}

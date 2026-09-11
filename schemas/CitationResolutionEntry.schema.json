@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "evidence_id": {
+      "minLength": 1,
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "in_scope": {
+      "title": "In Scope",
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "resolved": {
+      "title": "Resolved",
+      "type": "boolean"
+    },
+    "supports_statement": {
+      "title": "Supports Statement",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "resolved",
+    "in_scope",
+    "supports_statement"
+  ],
+  "title": "CitationResolutionEntry",
+  "type": "object"
+}

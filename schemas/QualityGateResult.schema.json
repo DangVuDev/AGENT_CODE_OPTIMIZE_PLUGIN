@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "detail": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Detail"
+    },
+    "dimension": {
+      "minLength": 1,
+      "title": "Dimension",
+      "type": "string"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "dimension",
+    "passed"
+  ],
+  "title": "QualityGateResult",
+  "type": "object"
+}

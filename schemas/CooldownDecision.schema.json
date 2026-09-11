@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "cooldown_expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cooldown Expires At"
+    },
+    "decision_id": {
+      "minLength": 1,
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "override_applied": {
+      "default": false,
+      "title": "Override Applied",
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "suppressed": {
+      "title": "Suppressed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decision_id",
+    "suppressed"
+  ],
+  "title": "CooldownDecision",
+  "type": "object"
+}

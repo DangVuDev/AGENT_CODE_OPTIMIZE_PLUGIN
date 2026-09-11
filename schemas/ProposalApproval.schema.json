@@ -1,0 +1,75 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actor Id"
+    },
+    "actor_role": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Actor Role"
+    },
+    "approval_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Approval Id"
+    },
+    "artifact_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifact Digest"
+    },
+    "decision": {
+      "enum": [
+        "approved",
+        "rejected",
+        "revision_requested",
+        "pending"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision",
+    "policy_version"
+  ],
+  "title": "ProposalApproval",
+  "type": "object"
+}

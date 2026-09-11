@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "dimension": {
+      "minLength": 1,
+      "title": "Dimension",
+      "type": "string"
+    },
+    "equivalent": {
+      "title": "Equivalent",
+      "type": "boolean"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    }
+  },
+  "required": [
+    "dimension",
+    "equivalent"
+  ],
+  "title": "DimensionEquivalenceVerdict",
+  "type": "object"
+}

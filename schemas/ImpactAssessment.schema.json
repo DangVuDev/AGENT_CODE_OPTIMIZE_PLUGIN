@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "CriterionImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "enum": [
+            "measured",
+            "forecast"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "criterion_id": {
+          "minLength": 1,
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "improves",
+            "worsens",
+            "neutral",
+            "unknown"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "magnitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Magnitude"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "direction",
+        "confidence",
+        "basis"
+      ],
+      "title": "CriterionImpact",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assessment_id": {
+      "minLength": 1,
+      "title": "Assessment Id",
+      "type": "string"
+    },
+    "criterion_impacts": {
+      "items": {
+        "$ref": "#/$defs/CriterionImpact"
+      },
+      "minItems": 1,
+      "title": "Criterion Impacts",
+      "type": "array"
+    },
+    "guardrail_impacts": {
+      "items": {
+        "$ref": "#/$defs/CriterionImpact"
+      },
+      "title": "Guardrail Impacts",
+      "type": "array"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "assessment_id",
+    "strategy_id",
+    "criterion_impacts"
+  ],
+  "title": "ImpactAssessment",
+  "type": "object"
+}

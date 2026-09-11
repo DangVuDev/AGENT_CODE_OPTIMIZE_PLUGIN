@@ -1,0 +1,992 @@
+[
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.10",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.20",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.30",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.40",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.50",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.60",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.61",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.62",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.63",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.70",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.71",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.80",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.90",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A1.95",
+    "owner": "a1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.10",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.20",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.30",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.31",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.40",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.41",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.50",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.60",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.61",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.62",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.63",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.64",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.70",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.71",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.80",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.90",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.91",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A2.95",
+    "owner": "a2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.10",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.11",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.20",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.21",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.30",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.31",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.32",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.33",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.40",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.41",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.50",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.51",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.60",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.61",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.62",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.63",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.64",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.70",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.80",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.81",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.82",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "A3.90",
+    "owner": "a3-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "A3"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.10",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.20",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.21",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.30",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.31",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.32",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.33",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.34",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.35",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.40",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.41",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.50",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.51",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.52",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.53",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.60",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.61",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.62",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.70",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.71",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.80",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.81",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.90",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.91",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.95",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B1.96",
+    "owner": "b1-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B1"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.10",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.20",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.21",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.22",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.30",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.31",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.40",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.41",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.50",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.51",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.52",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "B2.60",
+    "owner": "b2-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "B2"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.10",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.20",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.30",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.40",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.50",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.60",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  },
+  {
+    "definition_of_ready_evidence": [],
+    "enabled": false,
+    "handler": null,
+    "node_id": "C0.70",
+    "owner": "c0-service",
+    "readiness": "disabled",
+    "side_effect_class": null,
+    "stage": "C0"
+  }
+]

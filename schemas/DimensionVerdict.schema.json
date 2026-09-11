@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "baseline_value": {
+      "title": "Baseline Value",
+      "type": "string"
+    },
+    "comparable": {
+      "title": "Comparable",
+      "type": "boolean"
+    },
+    "dimension": {
+      "title": "Dimension",
+      "type": "string"
+    },
+    "expected_value": {
+      "title": "Expected Value",
+      "type": "string"
+    },
+    "material": {
+      "title": "Material",
+      "type": "boolean"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dimension",
+    "comparable",
+    "baseline_value",
+    "expected_value",
+    "material",
+    "reason"
+  ],
+  "title": "DimensionVerdict",
+  "type": "object"
+}

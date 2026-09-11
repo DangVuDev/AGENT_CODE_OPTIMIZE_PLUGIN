@@ -1,0 +1,316 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "ProposalApproval": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor Id"
+        },
+        "actor_role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actor Role"
+        },
+        "approval_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approval Id"
+        },
+        "artifact_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Digest"
+        },
+        "decision": {
+          "enum": [
+            "approved",
+            "rejected",
+            "revision_requested",
+            "pending"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "policy_version": {
+          "minLength": 1,
+          "title": "Policy Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "policy_version"
+      ],
+      "title": "ProposalApproval",
+      "type": "object"
+    },
+    "ProposalRoutingDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_id": {
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "policy_version": {
+          "minLength": 1,
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "required_actor_role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required Actor Role"
+        },
+        "route": {
+          "enum": [
+            "auto_forward",
+            "owner_review",
+            "security_review",
+            "reject"
+          ],
+          "title": "Route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "route",
+        "reasons",
+        "policy_version"
+      ],
+      "title": "ProposalRoutingDecision",
+      "type": "object"
+    },
+    "StalenessDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "proceed",
+            "refresh",
+            "cancel"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "changed_dimensions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Changed Dimensions",
+          "type": "array"
+        },
+        "decision_id": {
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "stale": {
+          "title": "Stale",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "decision_id",
+        "stale",
+        "action"
+      ],
+      "title": "StalenessDecision",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Envelope: QualifiedOpportunity + FindingSet + SolutionPortfolio + routing/approval state.\n\nConstituent artifacts are referenced by content digest rather than\nembedded, following the same linkage convention as `BaselineSnapshot`\nand `EvidenceBundle` in `a2.py`. `b2.py` deliberately does not import\n`b1.py` or `a3.py` types to avoid a cross-lane import cycle; digest\nreferences are sufficient for the envelope's own validation.",
+  "properties": {
+    "approval": {
+      "$ref": "#/$defs/ProposalApproval"
+    },
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "ProposalEnvelope",
+      "default": "ProposalEnvelope",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "finding_set_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Finding Set Digest",
+      "type": "string"
+    },
+    "narrative": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Narrative"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "qualified_opportunity_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Qualified Opportunity Digest",
+      "type": "string"
+    },
+    "quality_report_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Quality Report Digest",
+      "type": "string"
+    },
+    "routing_decision": {
+      "$ref": "#/$defs/ProposalRoutingDecision"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "solution_portfolio_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Solution Portfolio Digest",
+      "type": "string"
+    },
+    "staleness": {
+      "$ref": "#/$defs/StalenessDecision"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "qualified_opportunity_digest",
+    "finding_set_digest",
+    "solution_portfolio_digest",
+    "quality_report_digest",
+    "routing_decision",
+    "approval",
+    "staleness"
+  ],
+  "title": "ProposalEnvelope",
+  "type": "object"
+}

@@ -1,0 +1,43 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "language_coverage": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Language Coverage",
+      "type": "object"
+    },
+    "risk_informed": {
+      "default": false,
+      "title": "Risk Informed",
+      "type": "boolean"
+    },
+    "selected_analyzers": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Selected Analyzers",
+      "type": "array"
+    },
+    "skipped_analyzers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Skipped Analyzers",
+      "type": "object"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "strategy_id",
+    "selected_analyzers"
+  ],
+  "title": "AnalysisStrategy",
+  "type": "object"
+}

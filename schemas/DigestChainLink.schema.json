@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifact_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Artifact Digest",
+      "type": "string"
+    },
+    "artifact_type": {
+      "minLength": 1,
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "expected_parent_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Parent Digest"
+    },
+    "linked": {
+      "title": "Linked",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "artifact_type",
+    "artifact_digest",
+    "linked"
+  ],
+  "title": "DigestChainLink",
+  "type": "object"
+}

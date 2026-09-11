@@ -1,0 +1,71 @@
+{
+  "additionalProperties": false,
+  "description": "Raw command payload read by A1.10 from object storage.\n\nThis model is intentionally not graph state. `StartWorkflowCommand` carries\nonly an `ArtifactRef`; A1.10 reads this payload through the artifact port,\nvalidates it, and stores compact derived artifacts back to state.",
+  "properties": {
+    "actor_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "actor_role": {
+      "default": "requester",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Actor Role",
+      "type": "string"
+    },
+    "allowed_root": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Allowed Root",
+      "type": "string"
+    },
+    "local_path": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Local Path",
+      "type": "string"
+    },
+    "policy_version": {
+      "default": "intake-policy-v1",
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "raw_text": {
+      "anyOf": [
+        {
+          "maxLength": 20000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Raw Text"
+    },
+    "structured_request": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Structured Request"
+    }
+  },
+  "required": [
+    "local_path",
+    "allowed_root",
+    "actor_id"
+  ],
+  "title": "ManualCasePayload",
+  "type": "object"
+}

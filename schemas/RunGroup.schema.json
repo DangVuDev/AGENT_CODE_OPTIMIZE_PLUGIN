@@ -1,0 +1,90 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "dataset_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Id"
+    },
+    "environment_id": {
+      "minLength": 1,
+      "title": "Environment Id",
+      "type": "string"
+    },
+    "feature_id": {
+      "minLength": 1,
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "group_id": {
+      "minLength": 1,
+      "title": "Group Id",
+      "type": "string"
+    },
+    "model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Id"
+    },
+    "sample_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Sample Ids",
+      "type": "array"
+    },
+    "trust_level": {
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "Trust Level",
+      "type": "string"
+    },
+    "window_end": {
+      "format": "date-time",
+      "title": "Window End",
+      "type": "string"
+    },
+    "window_start": {
+      "format": "date-time",
+      "title": "Window Start",
+      "type": "string"
+    },
+    "workload_id": {
+      "minLength": 1,
+      "title": "Workload Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "group_id",
+    "feature_id",
+    "workload_id",
+    "environment_id",
+    "sample_ids",
+    "window_start",
+    "window_end",
+    "trust_level"
+  ],
+  "title": "RunGroup",
+  "type": "object"
+}

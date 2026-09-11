@@ -1,0 +1,253 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Compact pointer allowed in graph state; never embeds raw artifact data.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "artifact_id",
+        "content_digest",
+        "uri"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "RepositoryCommand": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "command_id": {
+          "title": "Command Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "build",
+            "unit",
+            "integration",
+            "benchmark",
+            "lint",
+            "type",
+            "security"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "working_directory": {
+          "title": "Working Directory",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_id",
+        "argv",
+        "working_directory",
+        "kind"
+      ],
+      "title": "RepositoryCommand",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "RepositoryManifest",
+      "default": "RepositoryManifest",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "commands": {
+      "items": {
+        "$ref": "#/$defs/RepositoryCommand"
+      },
+      "title": "Commands",
+      "type": "array"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "exclusions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "languages": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Languages",
+      "type": "object"
+    },
+    "manifest_files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Manifest Files",
+      "type": "array"
+    },
+    "modules": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Modules",
+      "type": "array"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "symbols_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "test_roots": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Test Roots",
+      "type": "array"
+    },
+    "tool_coverage": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Tool Coverage",
+      "type": "object"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "languages",
+    "modules",
+    "manifest_files",
+    "test_roots",
+    "commands",
+    "tool_coverage"
+  ],
+  "title": "RepositoryManifest",
+  "type": "object"
+}

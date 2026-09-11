@@ -1,0 +1,253 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Compact pointer allowed in graph state; never embeds raw artifact data.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "artifact_id",
+        "content_digest",
+        "uri"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "EvidenceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "cache_state": {
+          "title": "Cache State",
+          "type": "string"
+        },
+        "collector": {
+          "title": "Collector",
+          "type": "string"
+        },
+        "collector_version": {
+          "title": "Collector Version",
+          "type": "string"
+        },
+        "concurrency": {
+          "minimum": 1,
+          "title": "Concurrency",
+          "type": "integer"
+        },
+        "dataset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Id"
+        },
+        "environment_id": {
+          "title": "Environment Id",
+          "type": "string"
+        },
+        "feature_id": {
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "hardware_profile": {
+          "title": "Hardware Profile",
+          "type": "string"
+        },
+        "metric_schema_version": {
+          "title": "Metric Schema Version",
+          "type": "string"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Id"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "prompt_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Version"
+        },
+        "repository_id": {
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "sample_id": {
+          "title": "Sample Id",
+          "type": "string"
+        },
+        "source_snapshot_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Source Snapshot Digest",
+          "type": "string"
+        },
+        "trace_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace Id"
+        },
+        "workload_id": {
+          "title": "Workload Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "repository_id",
+        "source_snapshot_digest",
+        "workload_id",
+        "environment_id",
+        "hardware_profile",
+        "concurrency",
+        "cache_state",
+        "metric_schema_version",
+        "sample_id",
+        "observed_at",
+        "collector",
+        "collector_version"
+      ],
+      "title": "EvidenceIdentity",
+      "type": "object"
+    },
+    "TrustLevel": {
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "TrustLevel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "evidence_id": {
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "evidence_type": {
+      "title": "Evidence Type",
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "#/$defs/EvidenceIdentity"
+    },
+    "normalized_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "raw_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "trust_level": {
+      "$ref": "#/$defs/TrustLevel"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "evidence_type",
+    "trust_level",
+    "identity",
+    "raw_ref"
+  ],
+  "title": "EvidenceItem",
+  "type": "object"
+}

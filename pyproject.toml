@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "production-optimizer"
+version = "0.1.0"
+description = "LangGraph control-plane scaffold for evidence-grounded code optimization"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+license = { text = "Proprietary" }
+dependencies = [
+  "langgraph==1.1.10",
+  "pydantic==2.13.4",
+]
+
+[dependency-groups]
+dev = [
+  "pyright==1.1.414",
+  "pytest==8.4.2",
+  "pytest-cov==7.0.0",
+  "ruff==0.16.6",
+]
+production = [
+  "boto3==1.43.89",
+  "httpx==0.28.1",
+  "kubernetes==36.0.3",
+  "langgraph-checkpoint-postgres==3.1.2",
+  "opentelemetry-exporter-otlp-proto-grpc==1.44.0",
+  "opentelemetry-sdk==1.44.0",
+  "pyjwt[crypto]==2.13.0",
+  "psycopg[binary,pool]==3.3.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/production_optimizer"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers -q"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["production_optimizer"]
+omit = [
+  "src/production_optimizer/adapters/*",
+  "src/production_optimizer/contracts/platform.py",
+  "src/production_optimizer/ports/*",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+extend-exclude = [".local-data", ".venv"]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
+reportMissingTypeStubs = "warning"
+# Sealed artifacts intentionally narrow ArtifactEnvelope's mutable `str`
+# artifact_type/schema_version fields to a Literal tag per contracts/06-data
+# -contracts.md; this is the standard pydantic discriminated-model pattern and
+# a known strict-mode false positive since ContractModel's frozen=True is a
+# runtime ConfigDict, not a static dataclass_transform frozen declaration.
+reportIncompatibleVariableOverride = false

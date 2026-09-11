@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "analyzer_id": {
+      "minLength": 1,
+      "title": "Analyzer Id",
+      "type": "string"
+    },
+    "capability": {
+      "minLength": 1,
+      "title": "Capability",
+      "type": "string"
+    },
+    "network_access": {
+      "default": false,
+      "title": "Network Access",
+      "type": "boolean"
+    },
+    "supported_languages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Supported Languages",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "analyzer_id",
+    "version",
+    "capability"
+  ],
+  "title": "AnalyzerRegistration",
+  "type": "object"
+}

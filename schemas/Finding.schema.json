@@ -1,0 +1,183 @@
+{
+  "$defs": {
+    "FindingJudgement": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "minLength": 1,
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "judge_id": {
+          "minLength": 1,
+          "title": "Judge Id",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "model_version": {
+          "minLength": 1,
+          "title": "Model Version",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "verdict": {
+          "enum": [
+            "accept",
+            "reject"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "judge_id",
+        "finding_id",
+        "verdict",
+        "reasons",
+        "model_id",
+        "model_version"
+      ],
+      "title": "FindingJudgement",
+      "type": "object"
+    },
+    "TrustLevel": {
+      "enum": [
+        "T0",
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "title": "TrustLevel",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "analyzer_coverage": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Analyzer Coverage",
+      "type": "object"
+    },
+    "causal_claim": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Causal Claim",
+      "type": "string"
+    },
+    "claim_type": {
+      "enum": [
+        "observation",
+        "hypothesis",
+        "verified_cause"
+      ],
+      "title": "Claim Type",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "counterevidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Counterevidence Ids",
+      "type": "array"
+    },
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "judgement": {
+      "$ref": "#/$defs/FindingJudgement"
+    },
+    "problem_signal_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Problem Signal Ids",
+      "type": "array"
+    },
+    "runtime_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Runtime Path"
+    },
+    "scope_files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Scope Files",
+      "type": "array"
+    },
+    "scope_symbols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Scope Symbols",
+      "type": "array"
+    },
+    "supporting_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Supporting Evidence Ids",
+      "type": "array"
+    },
+    "symptom": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Symptom",
+      "type": "string"
+    },
+    "trust_level": {
+      "$ref": "#/$defs/TrustLevel"
+    },
+    "unknowns": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unknowns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "finding_id",
+    "problem_signal_ids",
+    "claim_type",
+    "symptom",
+    "causal_claim",
+    "supporting_evidence_ids",
+    "confidence",
+    "trust_level",
+    "judgement"
+  ],
+  "title": "Finding",
+  "type": "object"
+}

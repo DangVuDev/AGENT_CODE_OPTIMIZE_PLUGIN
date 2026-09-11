@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Compact pointer allowed in graph state; never embeds raw artifact data.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "artifact_id",
+        "content_digest",
+        "uri"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "StartCommandType": {
+      "enum": [
+        "CreateManualCase",
+        "StartDiscoveryScan",
+        "StartQualifiedCase"
+      ],
+      "title": "StartCommandType",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Authenticated, digest-bound command accepted by the root graph.",
+  "properties": {
+    "actor_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "command_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Command Id",
+      "type": "string"
+    },
+    "command_type": {
+      "$ref": "#/$defs/StartCommandType"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "issued_at": {
+      "format": "date-time",
+      "title": "Issued At",
+      "type": "string"
+    },
+    "payload_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Thread Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "command_id",
+    "command_type",
+    "tenant_id",
+    "case_id",
+    "thread_id",
+    "actor_id",
+    "idempotency_key",
+    "payload_ref",
+    "issued_at",
+    "expires_at"
+  ],
+  "title": "StartWorkflowCommand",
+  "type": "object"
+}

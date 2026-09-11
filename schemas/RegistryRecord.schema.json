@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "DataClassification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "title": "DataClassification",
+      "type": "string"
+    },
+    "RegistryKind": {
+      "enum": [
+        "repository",
+        "feature",
+        "owner",
+        "metric",
+        "workload",
+        "query",
+        "collector",
+        "analyzer",
+        "policy",
+        "model_provider"
+      ],
+      "title": "RegistryKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Versioned, tenant-scoped registry record with an immutable payload.",
+  "properties": {
+    "classification": {
+      "$ref": "#/$defs/DataClassification",
+      "default": "internal"
+    },
+    "enabled": {
+      "default": true,
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "record_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Record Id",
+      "type": "string"
+    },
+    "registry_kind": {
+      "$ref": "#/$defs/RegistryKind"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "valid_from": {
+      "format": "date-time",
+      "title": "Valid From",
+      "type": "string"
+    },
+    "valid_until": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Valid Until"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "registry_kind",
+    "record_id",
+    "version",
+    "tenant_id",
+    "valid_from",
+    "payload"
+  ],
+  "title": "RegistryRecord",
+  "type": "object"
+}

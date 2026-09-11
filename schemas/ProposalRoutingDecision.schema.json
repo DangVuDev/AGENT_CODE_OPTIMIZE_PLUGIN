@@ -1,0 +1,53 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "decision_id": {
+      "minLength": 1,
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Reasons",
+      "type": "array"
+    },
+    "required_actor_role": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Required Actor Role"
+    },
+    "route": {
+      "enum": [
+        "auto_forward",
+        "owner_review",
+        "security_review",
+        "reject"
+      ],
+      "title": "Route",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision_id",
+    "route",
+    "reasons",
+    "policy_version"
+  ],
+  "title": "ProposalRoutingDecision",
+  "type": "object"
+}

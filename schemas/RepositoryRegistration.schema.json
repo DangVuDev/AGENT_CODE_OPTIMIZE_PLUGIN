@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed_root_id": {
+      "minLength": 1,
+      "title": "Allowed Root Id",
+      "type": "string"
+    },
+    "canonical_path_ref": {
+      "minLength": 1,
+      "title": "Canonical Path Ref",
+      "type": "string"
+    },
+    "default_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Default Revision"
+    },
+    "excluded_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Excluded Paths",
+      "type": "array"
+    },
+    "repository_id": {
+      "minLength": 1,
+      "title": "Repository Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "repository_id",
+    "allowed_root_id",
+    "canonical_path_ref"
+  ],
+  "title": "RepositoryRegistration",
+  "type": "object"
+}

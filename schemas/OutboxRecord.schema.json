@@ -1,0 +1,84 @@
+{
+  "additionalProperties": false,
+  "description": "Transactional dispatch record backing `optimizer_control.outbox`.",
+  "properties": {
+    "attempts": {
+      "minimum": 0,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "delivered_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Delivered At"
+    },
+    "event_id": {
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "last_error_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error Ref"
+    },
+    "payload_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Payload Digest",
+      "type": "string"
+    },
+    "payload_ref": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Payload Ref",
+      "type": "string"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "topic": {
+      "minLength": 1,
+      "title": "Topic",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "tenant_id",
+    "case_id",
+    "topic",
+    "payload_ref",
+    "payload_digest",
+    "available_at",
+    "attempts"
+  ],
+  "title": "OutboxRecord",
+  "type": "object"
+}

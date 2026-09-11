@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "QualityGateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "dimension": {
+          "minLength": 1,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "dimension",
+        "passed"
+      ],
+      "title": "QualityGateResult",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "A3QualityReport",
+      "default": "A3QualityReport",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "cause_maturity_gate_results": {
+      "items": {
+        "$ref": "#/$defs/QualityGateResult"
+      },
+      "title": "Cause Maturity Gate Results",
+      "type": "array"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "finding_gate_results": {
+      "items": {
+        "$ref": "#/$defs/QualityGateResult"
+      },
+      "title": "Finding Gate Results",
+      "type": "array"
+    },
+    "finding_set_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Finding Set Digest",
+      "type": "string"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "portfolio_gate_results": {
+      "items": {
+        "$ref": "#/$defs/QualityGateResult"
+      },
+      "minItems": 1,
+      "title": "Portfolio Gate Results",
+      "type": "array"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "solution_portfolio_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Solution Portfolio Digest",
+      "type": "string"
+    },
+    "strategy_gate_results": {
+      "items": {
+        "$ref": "#/$defs/QualityGateResult"
+      },
+      "title": "Strategy Gate Results",
+      "type": "array"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "finding_set_digest",
+    "solution_portfolio_digest",
+    "passed",
+    "portfolio_gate_results"
+  ],
+  "title": "A3QualityReport",
+  "type": "object"
+}

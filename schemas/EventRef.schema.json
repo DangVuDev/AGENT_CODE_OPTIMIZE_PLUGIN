@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Compact pointer allowed in graph state; never embeds raw artifact data.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "artifact_id",
+        "content_digest",
+        "uri"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_ref": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "event_id": {
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "minLength": 1,
+      "title": "Event Type",
+      "type": "string"
+    },
+    "node_id": {
+      "minLength": 1,
+      "title": "Node Id",
+      "type": "string"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_id",
+    "event_type",
+    "node_id",
+    "occurred_at",
+    "artifact_ref"
+  ],
+  "title": "EventRef",
+  "type": "object"
+}

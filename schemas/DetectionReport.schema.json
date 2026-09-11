@@ -1,0 +1,701 @@
+{
+  "$defs": {
+    "CooldownDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "cooldown_expires_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cooldown Expires At"
+        },
+        "decision_id": {
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "override_applied": {
+          "default": false,
+          "title": "Override Applied",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "suppressed": {
+          "title": "Suppressed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "decision_id",
+        "suppressed"
+      ],
+      "title": "CooldownDecision",
+      "type": "object"
+    },
+    "DetectionSignal": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Value"
+        },
+        "description": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "detected_at": {
+          "format": "date-time",
+          "title": "Detected At",
+          "type": "string"
+        },
+        "effect_size": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Effect Size"
+        },
+        "metric_id": {
+          "minLength": 1,
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "observed_value": {
+          "title": "Observed Value",
+          "type": "number"
+        },
+        "run_group_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Run Group Ids",
+          "type": "array"
+        },
+        "severity": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Severity",
+          "type": "number"
+        },
+        "signal_id": {
+          "minLength": 1,
+          "title": "Signal Id",
+          "type": "string"
+        },
+        "signal_kind": {
+          "enum": [
+            "threshold",
+            "regression",
+            "hotspot",
+            "llm_quality"
+          ],
+          "title": "Signal Kind",
+          "type": "string"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "signal_id",
+        "signal_kind",
+        "run_group_ids",
+        "metric_id",
+        "description",
+        "observed_value",
+        "unit",
+        "severity",
+        "detected_at"
+      ],
+      "title": "DetectionSignal",
+      "type": "object"
+    },
+    "FeatureBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "alternatives": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternatives",
+          "type": "array"
+        },
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "feature_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Id"
+        },
+        "method": {
+          "enum": [
+            "explicit_label",
+            "trace_mapping",
+            "service_mapping",
+            "symbol_mapping"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "signal_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Signal Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "binding_id",
+        "signal_ids",
+        "confidence",
+        "method",
+        "resolved"
+      ],
+      "title": "FeatureBinding",
+      "type": "object"
+    },
+    "OpportunityScore": {
+      "additionalProperties": false,
+      "properties": {
+        "addressability": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Addressability",
+          "type": "number"
+        },
+        "business_impact": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Business Impact",
+          "type": "number"
+        },
+        "composite": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Composite",
+          "type": "number"
+        },
+        "evidence_trust": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Evidence Trust",
+          "type": "number"
+        },
+        "frequency": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Frequency",
+          "type": "number"
+        },
+        "policy_version": {
+          "minLength": 1,
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "score_id": {
+          "minLength": 1,
+          "title": "Score Id",
+          "type": "string"
+        },
+        "severity": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Severity",
+          "type": "number"
+        },
+        "strategic_priority": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Strategic Priority",
+          "type": "number"
+        }
+      },
+      "required": [
+        "score_id",
+        "severity",
+        "frequency",
+        "business_impact",
+        "evidence_trust",
+        "addressability",
+        "strategic_priority",
+        "composite",
+        "policy_version"
+      ],
+      "title": "OpportunityScore",
+      "type": "object"
+    },
+    "OwnershipBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "code_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Code Owner"
+        },
+        "conflicts": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Conflicts",
+          "type": "array"
+        },
+        "decision_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Owner"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "service_owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Service Owner"
+        }
+      },
+      "required": [
+        "binding_id",
+        "resolved"
+      ],
+      "title": "OwnershipBinding",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "QualificationDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_id": {
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "policy_version": {
+          "minLength": 1,
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "qualified": {
+          "title": "Qualified",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "decision_id",
+        "qualified",
+        "policy_version"
+      ],
+      "title": "QualificationDecision",
+      "type": "object"
+    },
+    "RunGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Id"
+        },
+        "environment_id": {
+          "minLength": 1,
+          "title": "Environment Id",
+          "type": "string"
+        },
+        "feature_id": {
+          "minLength": 1,
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "group_id": {
+          "minLength": 1,
+          "title": "Group Id",
+          "type": "string"
+        },
+        "model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Id"
+        },
+        "sample_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Sample Ids",
+          "type": "array"
+        },
+        "trust_level": {
+          "enum": [
+            "T0",
+            "T1",
+            "T2",
+            "T3",
+            "T4"
+          ],
+          "title": "Trust Level",
+          "type": "string"
+        },
+        "window_end": {
+          "format": "date-time",
+          "title": "Window End",
+          "type": "string"
+        },
+        "window_start": {
+          "format": "date-time",
+          "title": "Window Start",
+          "type": "string"
+        },
+        "workload_id": {
+          "minLength": 1,
+          "title": "Workload Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "group_id",
+        "feature_id",
+        "workload_id",
+        "environment_id",
+        "sample_ids",
+        "window_start",
+        "window_end",
+        "trust_level"
+      ],
+      "title": "RunGroup",
+      "type": "object"
+    },
+    "SourceBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "git_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Revision"
+        },
+        "repository_id": {
+          "minLength": 1,
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "unresolved_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unresolved Reason"
+        }
+      },
+      "required": [
+        "binding_id",
+        "repository_id",
+        "resolved"
+      ],
+      "title": "SourceBinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "DetectionReport",
+      "default": "DetectionReport",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "cooldown_decisions": {
+      "items": {
+        "$ref": "#/$defs/CooldownDecision"
+      },
+      "title": "Cooldown Decisions",
+      "type": "array"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "exclusions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "feature_bindings": {
+      "items": {
+        "$ref": "#/$defs/FeatureBinding"
+      },
+      "title": "Feature Bindings",
+      "type": "array"
+    },
+    "ownership_bindings": {
+      "items": {
+        "$ref": "#/$defs/OwnershipBinding"
+      },
+      "title": "Ownership Bindings",
+      "type": "array"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "qualification_decisions": {
+      "items": {
+        "$ref": "#/$defs/QualificationDecision"
+      },
+      "title": "Qualification Decisions",
+      "type": "array"
+    },
+    "run_groups": {
+      "items": {
+        "$ref": "#/$defs/RunGroup"
+      },
+      "title": "Run Groups",
+      "type": "array"
+    },
+    "scan_id": {
+      "minLength": 1,
+      "title": "Scan Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scores": {
+      "items": {
+        "$ref": "#/$defs/OpportunityScore"
+      },
+      "title": "Scores",
+      "type": "array"
+    },
+    "signals": {
+      "items": {
+        "$ref": "#/$defs/DetectionSignal"
+      },
+      "title": "Signals",
+      "type": "array"
+    },
+    "source_bindings": {
+      "items": {
+        "$ref": "#/$defs/SourceBinding"
+      },
+      "title": "Source Bindings",
+      "type": "array"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "window_end": {
+      "format": "date-time",
+      "title": "Window End",
+      "type": "string"
+    },
+    "window_start": {
+      "format": "date-time",
+      "title": "Window Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "scan_id",
+    "window_start",
+    "window_end"
+  ],
+  "title": "DetectionReport",
+  "type": "object"
+}

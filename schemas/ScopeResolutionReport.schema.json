@@ -1,0 +1,74 @@
+{
+  "$defs": {
+    "ScopeResolutionEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "exists": {
+          "title": "Exists",
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "file",
+            "symbol",
+            "config_key",
+            "prompt",
+            "dependency"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path_or_symbol": {
+          "minLength": 1,
+          "title": "Path Or Symbol",
+          "type": "string"
+        },
+        "proposed_creation": {
+          "default": false,
+          "title": "Proposed Creation",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path_or_symbol",
+        "kind",
+        "exists"
+      ],
+      "title": "ScopeResolutionEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/ScopeResolutionEntry"
+      },
+      "minItems": 1,
+      "title": "Entries",
+      "type": "array"
+    },
+    "fully_resolved": {
+      "title": "Fully Resolved",
+      "type": "boolean"
+    },
+    "report_id": {
+      "minLength": 1,
+      "title": "Report Id",
+      "type": "string"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "report_id",
+    "strategy_id",
+    "entries",
+    "fully_resolved"
+  ],
+  "title": "ScopeResolutionReport",
+  "type": "object"
+}

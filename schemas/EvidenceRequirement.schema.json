@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "accepted_source_types": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Accepted Source Types",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "criterion_id": {
+      "title": "Criterion Id",
+      "type": "string"
+    },
+    "mandatory": {
+      "default": true,
+      "title": "Mandatory",
+      "type": "boolean"
+    },
+    "minimum_samples": {
+      "minimum": 1,
+      "title": "Minimum Samples",
+      "type": "integer"
+    },
+    "requirement_id": {
+      "minLength": 1,
+      "title": "Requirement Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "requirement_id",
+    "criterion_id",
+    "accepted_source_types",
+    "minimum_samples"
+  ],
+  "title": "EvidenceRequirement",
+  "type": "object"
+}

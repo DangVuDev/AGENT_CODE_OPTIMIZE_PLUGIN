@@ -1,0 +1,96 @@
+name: production-optimizer-development
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    environment:
+      POSTGRES_DB: optimizer
+      POSTGRES_USER: optimizer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U optimizer -d optimizer"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    image: ${MINIO_IMAGE}
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-optimizer}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-now}
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  minio-bootstrap:
+    image: ${MINIO_MC_IMAGE}
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-optimizer}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-now}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >-
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}";
+        mc mb --ignore-existing local/optimizer-development;
+        mc version enable local/optimizer-development
+    restart: "no"
+
+  opa:
+    image: ${OPA_IMAGE}
+    command: ["run", "--server", "--addr=0.0.0.0:8181", "/policies"]
+    ports:
+      - "127.0.0.1:8181:8181"
+    volumes:
+      - ../../policies:/policies:ro
+    healthcheck:
+      test: ["CMD", "/opa", "eval", "1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  otel-collector:
+    image: ${OTEL_COLLECTOR_IMAGE}
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:8889:8889"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  minio-data:
+

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "dependencies": ["."],
+  "graphs": {
+    "optimization_root": "./src/production_optimizer/orchestration/root_graph.py:graph"
+  },
+  "env": ".env"
+}
+

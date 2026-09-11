@@ -1,0 +1,210 @@
+{
+  "$defs": {
+    "DataClassification": {
+      "enum": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "title": "DataClassification",
+      "type": "string"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    },
+    "RegistryKind": {
+      "enum": [
+        "repository",
+        "feature",
+        "owner",
+        "metric",
+        "workload",
+        "query",
+        "collector",
+        "analyzer",
+        "policy",
+        "model_provider"
+      ],
+      "title": "RegistryKind",
+      "type": "string"
+    },
+    "RegistryRecord": {
+      "additionalProperties": false,
+      "description": "Versioned, tenant-scoped registry record with an immutable payload.",
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/DataClassification",
+          "default": "internal"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "record_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "registry_kind": {
+          "$ref": "#/$defs/RegistryKind"
+        },
+        "tenant_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Tenant Id",
+          "type": "string"
+        },
+        "valid_from": {
+          "format": "date-time",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_until": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Until"
+        },
+        "version": {
+          "minimum": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "registry_kind",
+        "record_id",
+        "version",
+        "tenant_id",
+        "valid_from",
+        "payload"
+      ],
+      "title": "RegistryRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "RegistrySnapshot",
+      "default": "RegistrySnapshot",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/RegistryRecord"
+      },
+      "title": "Records",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_at": {
+      "format": "date-time",
+      "title": "Snapshot At",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "records",
+    "snapshot_at"
+  ],
+  "title": "RegistrySnapshot",
+  "type": "object"
+}

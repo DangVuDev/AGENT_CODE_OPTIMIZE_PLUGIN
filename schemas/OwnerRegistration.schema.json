@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "escalation_owner_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Escalation Owner Id"
+    },
+    "feature_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Feature Ids",
+      "type": "array"
+    },
+    "owner_id": {
+      "minLength": 1,
+      "title": "Owner Id",
+      "type": "string"
+    },
+    "repository_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Repository Ids",
+      "type": "array"
+    },
+    "roles": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Roles",
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "owner_id",
+    "roles"
+  ],
+  "title": "OwnerRegistration",
+  "type": "object"
+}

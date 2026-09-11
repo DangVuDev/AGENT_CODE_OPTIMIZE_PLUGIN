@@ -1,0 +1,125 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "cache_state": {
+      "title": "Cache State",
+      "type": "string"
+    },
+    "collector": {
+      "title": "Collector",
+      "type": "string"
+    },
+    "collector_version": {
+      "title": "Collector Version",
+      "type": "string"
+    },
+    "concurrency": {
+      "minimum": 1,
+      "title": "Concurrency",
+      "type": "integer"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Id"
+    },
+    "environment_id": {
+      "title": "Environment Id",
+      "type": "string"
+    },
+    "feature_id": {
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "hardware_profile": {
+      "title": "Hardware Profile",
+      "type": "string"
+    },
+    "metric_schema_version": {
+      "title": "Metric Schema Version",
+      "type": "string"
+    },
+    "model_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Id"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "prompt_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prompt Version"
+    },
+    "repository_id": {
+      "title": "Repository Id",
+      "type": "string"
+    },
+    "sample_id": {
+      "title": "Sample Id",
+      "type": "string"
+    },
+    "source_snapshot_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Snapshot Digest",
+      "type": "string"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trace Id"
+    },
+    "workload_id": {
+      "title": "Workload Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "feature_id",
+    "repository_id",
+    "source_snapshot_digest",
+    "workload_id",
+    "environment_id",
+    "hardware_profile",
+    "concurrency",
+    "cache_state",
+    "metric_schema_version",
+    "sample_id",
+    "observed_at",
+    "collector",
+    "collector_version"
+  ],
+  "title": "EvidenceIdentity",
+  "type": "object"
+}

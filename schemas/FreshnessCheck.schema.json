@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "checked_at": {
+      "format": "date-time",
+      "title": "Checked At",
+      "type": "string"
+    },
+    "dimension": {
+      "minLength": 1,
+      "title": "Dimension",
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "fresh": {
+      "title": "Fresh",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "dimension",
+    "fresh",
+    "checked_at"
+  ],
+  "title": "FreshnessCheck",
+  "type": "object"
+}

@@ -1,0 +1,23 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "version": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "version"
+  ],
+  "title": "ProducerIdentity",
+  "type": "object"
+}

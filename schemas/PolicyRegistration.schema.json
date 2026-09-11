@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "decision_types": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Decision Types",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "implementation_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Implementation Digest",
+      "type": "string"
+    },
+    "policy_id": {
+      "minLength": 1,
+      "title": "Policy Id",
+      "type": "string"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "policy_id",
+    "policy_version",
+    "decision_types",
+    "implementation_digest"
+  ],
+  "title": "PolicyRegistration",
+  "type": "object"
+}

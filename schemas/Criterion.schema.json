@@ -1,0 +1,48 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "criterion_id": {
+      "minLength": 1,
+      "title": "Criterion Id",
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "minimize",
+        "maximize",
+        "target"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "metric_id": {
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "target": {
+      "title": "Target",
+      "type": "number"
+    },
+    "unit": {
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    },
+    "weight": {
+      "exclusiveMinimum": 0,
+      "title": "Weight",
+      "type": "number"
+    }
+  },
+  "required": [
+    "criterion_id",
+    "metric_id",
+    "direction",
+    "target",
+    "unit",
+    "weight"
+  ],
+  "title": "Criterion",
+  "type": "object"
+}

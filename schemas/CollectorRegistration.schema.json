@@ -1,0 +1,55 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "collector_id": {
+      "minLength": 1,
+      "title": "Collector Id",
+      "type": "string"
+    },
+    "collector_type": {
+      "enum": [
+        "metrics",
+        "logs",
+        "traces",
+        "profiles",
+        "llm",
+        "command"
+      ],
+      "title": "Collector Type",
+      "type": "string"
+    },
+    "endpoint_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Endpoint Ref"
+    },
+    "secret_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Secret Refs",
+      "type": "array"
+    },
+    "supported_metric_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Supported Metric Ids",
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "collector_id",
+    "collector_type"
+  ],
+  "title": "CollectorRegistration",
+  "type": "object"
+}

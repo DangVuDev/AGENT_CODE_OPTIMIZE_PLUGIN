@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "EvidenceQualityReport",
+      "default": "EvidenceQualityReport",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "collector_failures": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Collector Failures",
+      "type": "object"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "freshness_failures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Freshness Failures",
+      "type": "array"
+    },
+    "integrity_failures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Integrity Failures",
+      "type": "array"
+    },
+    "mandatory_coverage": {
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "title": "Mandatory Coverage",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "redaction_failures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Redaction Failures",
+      "type": "array"
+    },
+    "sample_failures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Sample Failures",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "passed",
+    "mandatory_coverage",
+    "sample_failures",
+    "freshness_failures",
+    "integrity_failures",
+    "redaction_failures",
+    "collector_failures"
+  ],
+  "title": "EvidenceQualityReport",
+  "type": "object"
+}

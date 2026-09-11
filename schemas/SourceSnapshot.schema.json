@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "FileIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "executable": {
+          "default": false,
+          "title": "Executable",
+          "type": "boolean"
+        },
+        "relative_path": {
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relative_path",
+        "content_digest"
+      ],
+      "title": "FileIdentity",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "SourceSnapshot",
+      "default": "SourceSnapshot",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "canonical_path_ref": {
+      "title": "Canonical Path Ref",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dirty": {
+      "title": "Dirty",
+      "type": "boolean"
+    },
+    "exclusions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/FileIdentity"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "git_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Revision"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "repository_id": {
+      "title": "Repository Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "submodule_revisions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Submodule Revisions",
+      "type": "object"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "repository_id",
+    "canonical_path_ref",
+    "dirty",
+    "files"
+  ],
+  "title": "SourceSnapshot",
+  "type": "object"
+}

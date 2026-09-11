@@ -1,0 +1,40 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "omitted_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Omitted Evidence Ids",
+      "type": "array"
+    },
+    "omitted_source_regions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Omitted Source Regions",
+      "type": "array"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "truncated": {
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "truncated"
+  ],
+  "title": "TruncationReport",
+  "type": "object"
+}

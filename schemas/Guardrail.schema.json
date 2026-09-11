@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "guardrail_id": {
+      "minLength": 1,
+      "title": "Guardrail Id",
+      "type": "string"
+    },
+    "metric_id": {
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "operator": {
+      "enum": [
+        "lt",
+        "lte",
+        "eq",
+        "gte",
+        "gt"
+      ],
+      "title": "Operator",
+      "type": "string"
+    },
+    "threshold": {
+      "title": "Threshold",
+      "type": "number"
+    },
+    "unit": {
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "guardrail_id",
+    "metric_id",
+    "operator",
+    "threshold",
+    "unit"
+  ],
+  "title": "Guardrail",
+  "type": "object"
+}

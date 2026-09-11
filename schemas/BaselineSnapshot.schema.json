@@ -1,0 +1,217 @@
+{
+  "$defs": {
+    "MetricAggregate": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "maximum": {
+          "title": "Maximum",
+          "type": "number"
+        },
+        "mean": {
+          "title": "Mean",
+          "type": "number"
+        },
+        "metric_id": {
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "minimum": {
+          "title": "Minimum",
+          "type": "number"
+        },
+        "percentile_50": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Percentile 50"
+        },
+        "percentile_95": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Percentile 95"
+        },
+        "sample_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Sample Ids",
+          "type": "array"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric_id",
+        "unit",
+        "sample_ids",
+        "count",
+        "minimum",
+        "maximum",
+        "mean"
+      ],
+      "title": "MetricAggregate",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "aggregates": {
+      "items": {
+        "$ref": "#/$defs/MetricAggregate"
+      },
+      "title": "Aggregates",
+      "type": "array"
+    },
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "BaselineSnapshot",
+      "default": "BaselineSnapshot",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "environment_id": {
+      "title": "Environment Id",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "request_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_snapshot_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Snapshot Digest",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "window_end": {
+      "format": "date-time",
+      "title": "Window End",
+      "type": "string"
+    },
+    "window_start": {
+      "format": "date-time",
+      "title": "Window Start",
+      "type": "string"
+    },
+    "workload_id": {
+      "title": "Workload Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "request_digest",
+    "source_snapshot_digest",
+    "workload_id",
+    "environment_id",
+    "window_start",
+    "window_end",
+    "aggregates"
+  ],
+  "title": "BaselineSnapshot",
+  "type": "object"
+}

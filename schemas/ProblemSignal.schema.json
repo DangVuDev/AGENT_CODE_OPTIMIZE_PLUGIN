@@ -1,0 +1,88 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "baseline_value": {
+      "title": "Baseline Value",
+      "type": "number"
+    },
+    "criterion_id": {
+      "minLength": 1,
+      "title": "Criterion Id",
+      "type": "string"
+    },
+    "description": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "detected_at": {
+      "format": "date-time",
+      "title": "Detected At",
+      "type": "string"
+    },
+    "effect_size": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effect Size"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "metric_id": {
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "signal_id": {
+      "minLength": 1,
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "signal_kind": {
+      "enum": [
+        "threshold_breach",
+        "regression",
+        "hotspot",
+        "cost_inflation"
+      ],
+      "title": "Signal Kind",
+      "type": "string"
+    },
+    "target_value": {
+      "title": "Target Value",
+      "type": "number"
+    },
+    "unit": {
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    }
+  },
+  "required": [
+    "signal_id",
+    "criterion_id",
+    "metric_id",
+    "signal_kind",
+    "description",
+    "baseline_value",
+    "target_value",
+    "unit",
+    "evidence_ids",
+    "detected_at"
+  ],
+  "title": "ProblemSignal",
+  "type": "object"
+}

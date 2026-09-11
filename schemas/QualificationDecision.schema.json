@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "decision_id": {
+      "minLength": 1,
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "qualified": {
+      "title": "Qualified",
+      "type": "boolean"
+    },
+    "reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Reasons",
+      "type": "array"
+    }
+  },
+  "required": [
+    "decision_id",
+    "qualified",
+    "policy_version"
+  ],
+  "title": "QualificationDecision",
+  "type": "object"
+}

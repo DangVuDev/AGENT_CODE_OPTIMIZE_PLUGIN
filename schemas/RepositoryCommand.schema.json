@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "argv": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Argv",
+      "type": "array"
+    },
+    "command_id": {
+      "title": "Command Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "build",
+        "unit",
+        "integration",
+        "benchmark",
+        "lint",
+        "type",
+        "security"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "working_directory": {
+      "title": "Working Directory",
+      "type": "string"
+    }
+  },
+  "required": [
+    "command_id",
+    "argv",
+    "working_directory",
+    "kind"
+  ],
+  "title": "RepositoryCommand",
+  "type": "object"
+}

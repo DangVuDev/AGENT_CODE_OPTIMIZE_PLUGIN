@@ -1,0 +1,105 @@
+{
+  "$defs": {
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "description": "Compact pointer allowed in graph state; never embeds raw artifact data.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "schema_version": {
+          "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_type",
+        "schema_version",
+        "artifact_id",
+        "content_digest",
+        "uri"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "capability": {
+      "minLength": 1,
+      "title": "Capability",
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "input_refs": {
+      "items": {
+        "$ref": "#/$defs/ArtifactRef"
+      },
+      "title": "Input Refs",
+      "type": "array"
+    },
+    "job_id": {
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "node_id": {
+      "minLength": 1,
+      "title": "Node Id",
+      "type": "string"
+    },
+    "secret_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Secret Refs",
+      "type": "array"
+    },
+    "timeout_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Timeout Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "job_id",
+    "case_id",
+    "node_id",
+    "idempotency_key",
+    "input_refs",
+    "capability",
+    "timeout_seconds"
+  ],
+  "title": "WorkerJob",
+  "type": "object"
+}

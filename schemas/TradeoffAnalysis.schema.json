@@ -1,0 +1,96 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "analysis_id": {
+      "minLength": 1,
+      "title": "Analysis Id",
+      "type": "string"
+    },
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "cons": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Cons",
+      "type": "array"
+    },
+    "effort": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Effort",
+      "type": "string"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "operational_effects": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Operational Effects",
+      "type": "array"
+    },
+    "opportunity_cost": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Opportunity Cost"
+    },
+    "prerequisites": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Prerequisites",
+      "type": "array"
+    },
+    "pros": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Pros",
+      "type": "array"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "uncertainty": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Uncertainty",
+      "type": "number"
+    }
+  },
+  "required": [
+    "analysis_id",
+    "strategy_id",
+    "pros",
+    "cons",
+    "effort",
+    "uncertainty"
+  ],
+  "title": "TradeoffAnalysis",
+  "type": "object"
+}

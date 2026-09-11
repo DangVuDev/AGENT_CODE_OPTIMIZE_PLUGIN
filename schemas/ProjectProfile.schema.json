@@ -1,0 +1,141 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "ProjectProfile",
+      "default": "ProjectProfile",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "discovery_truncated": {
+      "default": false,
+      "title": "Discovery Truncated",
+      "type": "boolean"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "file_count": {
+      "minimum": 0,
+      "title": "File Count",
+      "type": "integer"
+    },
+    "generated_or_vendor_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Generated Or Vendor Paths",
+      "type": "array"
+    },
+    "languages": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Languages",
+      "type": "object"
+    },
+    "manifest_files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Manifest Files",
+      "type": "array"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "test_roots": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Test Roots",
+      "type": "array"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "file_count"
+  ],
+  "title": "ProjectProfile",
+  "type": "object"
+}

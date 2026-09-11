@@ -1,0 +1,79 @@
+{
+  "$defs": {
+    "CitationResolutionEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": {
+          "minLength": 1,
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "in_scope": {
+          "title": "In Scope",
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "resolved": {
+          "title": "Resolved",
+          "type": "boolean"
+        },
+        "supports_statement": {
+          "title": "Supports Statement",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "resolved",
+        "in_scope",
+        "supports_statement"
+      ],
+      "title": "CitationResolutionEntry",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "all_resolved": {
+      "title": "All Resolved",
+      "type": "boolean"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/CitationResolutionEntry"
+      },
+      "minItems": 1,
+      "title": "Entries",
+      "type": "array"
+    },
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "report_id": {
+      "minLength": 1,
+      "title": "Report Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "report_id",
+    "finding_id",
+    "entries",
+    "all_resolved"
+  ],
+  "title": "CitationResolutionReport",
+  "type": "object"
+}

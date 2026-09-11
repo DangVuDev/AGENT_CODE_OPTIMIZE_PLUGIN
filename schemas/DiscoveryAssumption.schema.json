@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "assumption_id": {
+      "minLength": 1,
+      "title": "Assumption Id",
+      "type": "string"
+    },
+    "basis": {
+      "enum": [
+        "detected_fact",
+        "inferred_context"
+      ],
+      "title": "Basis",
+      "type": "string"
+    },
+    "statement": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Statement",
+      "type": "string"
+    },
+    "verified": {
+      "title": "Verified",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "assumption_id",
+    "statement",
+    "basis",
+    "verified"
+  ],
+  "title": "DiscoveryAssumption",
+  "type": "object"
+}

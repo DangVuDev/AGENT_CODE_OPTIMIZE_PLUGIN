@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "command_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command Id"
+    },
+    "mechanism": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Mechanism",
+      "type": "string"
+    },
+    "plan_id": {
+      "minLength": 1,
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "reversible": {
+      "title": "Reversible",
+      "type": "boolean"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "verification": {
+      "minLength": 1,
+      "title": "Verification",
+      "type": "string"
+    }
+  },
+  "required": [
+    "plan_id",
+    "strategy_id",
+    "mechanism",
+    "verification",
+    "reversible"
+  ],
+  "title": "RollbackPlan",
+  "type": "object"
+}

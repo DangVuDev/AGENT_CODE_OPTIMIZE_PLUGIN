@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Envelope: origin plus validated references to request, baseline, evidence and portfolio.\n\nConstituent artifacts are referenced by content digest rather than\nembedded or imported, following the same linkage convention as\n`BaselineSnapshot.request_digest` in `a2.py` (which references\n`a1.py`'s `OptimizationRequest` without importing it).",
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "ConvergedCase",
+      "default": "ConvergedCase",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "baseline_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Baseline Digest",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "convergence_decision_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Convergence Decision Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_bundle_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Evidence Bundle Digest",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "origin": {
+      "enum": [
+        "manual",
+        "automatic"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "request_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "solution_portfolio_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Solution Portfolio Digest",
+      "type": "string"
+    },
+    "source_snapshot_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Source Snapshot Digest",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "origin",
+    "request_digest",
+    "source_snapshot_digest",
+    "baseline_digest",
+    "evidence_bundle_digest",
+    "solution_portfolio_digest",
+    "convergence_decision_digest"
+  ],
+  "title": "ConvergedCase",
+  "type": "object"
+}

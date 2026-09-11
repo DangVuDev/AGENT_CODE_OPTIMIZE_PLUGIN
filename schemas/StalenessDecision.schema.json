@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "proceed",
+        "refresh",
+        "cancel"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "changed_dimensions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Changed Dimensions",
+      "type": "array"
+    },
+    "decision_id": {
+      "minLength": 1,
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "stale": {
+      "title": "Stale",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "decision_id",
+    "stale",
+    "action"
+  ],
+  "title": "StalenessDecision",
+  "type": "object"
+}

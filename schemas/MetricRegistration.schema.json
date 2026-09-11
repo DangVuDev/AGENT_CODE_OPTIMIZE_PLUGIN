@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "material_dimensions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Material Dimensions",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "metric_id": {
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "pattern": "^[1-9][0-9]*\\.[0-9]+$",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "unit": {
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    },
+    "value_type": {
+      "enum": [
+        "counter",
+        "gauge",
+        "histogram",
+        "summary",
+        "score"
+      ],
+      "title": "Value Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "metric_id",
+    "schema_version",
+    "unit",
+    "value_type"
+  ],
+  "title": "MetricRegistration",
+  "type": "object"
+}

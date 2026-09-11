@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Capabilities",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "data_disclosure_classifications": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Data Disclosure Classifications",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "maximum_context_tokens": {
+      "exclusiveMinimum": 0,
+      "title": "Maximum Context Tokens",
+      "type": "integer"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "provider_id": {
+      "minLength": 1,
+      "title": "Provider Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "provider_id",
+    "model_id",
+    "model_version",
+    "capabilities",
+    "maximum_context_tokens"
+  ],
+  "title": "ModelProviderRegistration",
+  "type": "object"
+}

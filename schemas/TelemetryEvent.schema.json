@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "attributes": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "title": "Attributes",
+      "type": "object"
+    },
+    "case_id": {
+      "title": "Case Id",
+      "type": "string"
+    },
+    "node_id": {
+      "title": "Node Id",
+      "type": "string"
+    },
+    "result_code": {
+      "title": "Result Code",
+      "type": "string"
+    },
+    "thread_id": {
+      "title": "Thread Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "case_id",
+    "thread_id",
+    "node_id",
+    "attempt",
+    "result_code",
+    "attributes"
+  ],
+  "title": "TelemetryEvent",
+  "type": "object"
+}

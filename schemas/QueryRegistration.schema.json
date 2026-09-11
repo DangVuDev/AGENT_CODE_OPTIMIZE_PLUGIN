@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "allowed_parameters": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Parameters",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "collector_id": {
+      "minLength": 1,
+      "title": "Collector Id",
+      "type": "string"
+    },
+    "maximum_window_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Maximum Window Seconds",
+      "type": "integer"
+    },
+    "query_id": {
+      "minLength": 1,
+      "title": "Query Id",
+      "type": "string"
+    },
+    "query_template": {
+      "minLength": 1,
+      "title": "Query Template",
+      "type": "string"
+    },
+    "redaction_profile_id": {
+      "minLength": 1,
+      "title": "Redaction Profile Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "query_id",
+    "collector_id",
+    "query_template",
+    "maximum_window_seconds",
+    "redaction_profile_id"
+  ],
+  "title": "QueryRegistration",
+  "type": "object"
+}

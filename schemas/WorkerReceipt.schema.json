@@ -1,0 +1,44 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "accepted": {
+      "title": "Accepted",
+      "type": "boolean"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "lease_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Id"
+    }
+  },
+  "required": [
+    "job_id",
+    "accepted"
+  ],
+  "title": "WorkerReceipt",
+  "type": "object"
+}

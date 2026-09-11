@@ -1,0 +1,157 @@
+{
+  "$defs": {
+    "EvidenceRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_source_types": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Accepted Source Types",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "criterion_id": {
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "mandatory": {
+          "default": true,
+          "title": "Mandatory",
+          "type": "boolean"
+        },
+        "minimum_samples": {
+          "minimum": 1,
+          "title": "Minimum Samples",
+          "type": "integer"
+        },
+        "requirement_id": {
+          "minLength": 1,
+          "title": "Requirement Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "criterion_id",
+        "accepted_source_types",
+        "minimum_samples"
+      ],
+      "title": "EvidenceRequirement",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "EvidenceRequirementSet",
+      "default": "EvidenceRequirementSet",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_requirements": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRequirement"
+      },
+      "title": "Evidence Requirements",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "missing_fields": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Fields",
+      "type": "array"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest"
+  ],
+  "title": "EvidenceRequirementSet",
+  "type": "object"
+}
