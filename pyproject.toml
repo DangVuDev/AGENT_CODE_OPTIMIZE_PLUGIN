@@ -22,10 +22,13 @@ dev = [
   "ruff==0.16.6",
 ]
 production = [
+  "anthropic==0.75.0",
   "boto3==1.43.89",
+  "google-genai==1.51.0",
   "httpx==0.28.1",
   "kubernetes==36.0.3",
   "langgraph-checkpoint-postgres==3.1.2",
+  "openai==2.15.0",
   "opentelemetry-exporter-otlp-proto-grpc==1.44.0",
   "opentelemetry-sdk==1.44.0",
   "pyjwt[crypto]==2.13.0",

@@ -1,0 +1,33 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": {
+      "minLength": 1,
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "local_path": {
+      "minLength": 1,
+      "title": "Local Path",
+      "type": "string"
+    },
+    "repository_id": {
+      "minLength": 1,
+      "title": "Repository Id",
+      "type": "string"
+    },
+    "source_id": {
+      "minLength": 1,
+      "title": "Source Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_id",
+    "feature_id",
+    "repository_id",
+    "local_path"
+  ],
+  "title": "RegisteredSource",
+  "type": "object"
+}

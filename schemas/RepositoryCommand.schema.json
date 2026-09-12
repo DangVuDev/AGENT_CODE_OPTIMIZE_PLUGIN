@@ -26,6 +26,15 @@
       "title": "Kind",
       "type": "string"
     },
+    "source": {
+      "enum": [
+        "pyproject_toml",
+        "ci_config",
+        "llm_suggested"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
     "working_directory": {
       "title": "Working Directory",
       "type": "string"
@@ -35,7 +44,8 @@
     "command_id",
     "argv",
     "working_directory",
-    "kind"
+    "kind",
+    "source"
   ],
   "title": "RepositoryCommand",
   "type": "object"

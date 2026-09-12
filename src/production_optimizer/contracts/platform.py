@@ -67,6 +67,47 @@ class WorkerReceipt(ContractModel):
     expires_at: datetime | None = None
 
 
+class ModelRole(StrEnum):
+    """Which capacity a model call is made in.
+
+    Carrying this on the request itself (not just as an adapter-side
+    convention) is what makes "the generator cannot judge itself" (A3
+    playbook) mechanically checkable: a judge call is a structurally
+    separate `ModelCompletionRequest`, never a continuation of a generator
+    conversation.
+    """
+
+    GENERATOR = "generator"
+    JUDGE = "judge"
+
+
+class ModelMessage(ContractModel):
+    role: str = Field(min_length=1)
+    content: str = Field(min_length=1)
+
+
+class ModelCompletionRequest(ContractModel):
+    role: ModelRole
+    model_id: str = Field(min_length=1)
+    prompt_version: str = Field(min_length=1)
+    messages: list[ModelMessage] = Field(min_length=1)
+    response_schema: dict[str, Any]
+    max_output_tokens: int = Field(gt=0)
+    idempotency_key: str = Field(min_length=1)
+
+
+class ModelCompletionResult(ContractModel):
+    request_id: str = Field(min_length=1)
+    model_id: str = Field(min_length=1)
+    model_version: str = Field(min_length=1)
+    raw_text: str
+    parsed_json: dict[str, Any] | None = None
+    valid_json: bool
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    stop_reason: str = Field(min_length=1)
+
+
 class TelemetryEvent(ContractModel):
     case_id: str
     thread_id: str

@@ -1,0 +1,167 @@
+{
+  "$defs": {
+    "CollectorBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "aggregation": {
+          "minLength": 1,
+          "title": "Aggregation",
+          "type": "string"
+        },
+        "collector_id": {
+          "minLength": 1,
+          "title": "Collector Id",
+          "type": "string"
+        },
+        "minimum_samples": {
+          "minimum": 1,
+          "title": "Minimum Samples",
+          "type": "integer"
+        },
+        "requirement_id": {
+          "minLength": 1,
+          "title": "Requirement Id",
+          "type": "string"
+        },
+        "source_type": {
+          "minLength": 1,
+          "title": "Source Type",
+          "type": "string"
+        },
+        "window_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Window Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requirement_id",
+        "collector_id",
+        "source_type",
+        "window_seconds",
+        "aggregation",
+        "minimum_samples"
+      ],
+      "title": "CollectorBinding",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "CollectorPlan",
+      "default": "CollectorPlan",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "bindings": {
+      "items": {
+        "$ref": "#/$defs/CollectorBinding"
+      },
+      "title": "Bindings",
+      "type": "array"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "catalog_version": {
+      "minLength": 1,
+      "title": "Catalog Version",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "unresolved_requirements": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Requirements",
+      "type": "array"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "catalog_version"
+  ],
+  "title": "CollectorPlan",
+  "type": "object"
+}

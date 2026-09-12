@@ -42,6 +42,13 @@ class RepositoryCommand(ContractModel):
     argv: list[str] = Field(min_length=1)
     working_directory: str
     kind: Literal["build", "unit", "integration", "benchmark", "lint", "type", "security"]
+    # Where A2.31 got this command from -- never silently blurred, since
+    # "llm_suggested" carries materially different trust: it always halts
+    # for human approval before A2.50 may authorize it (see
+    # `docs/adr/0002-model-provider-port.md`-style human-in-the-loop gate);
+    # "pyproject_toml"/"ci_config" are both real, detected-not-guessed
+    # commands and never require approval.
+    source: Literal["pyproject_toml", "ci_config", "llm_suggested"]
 
 
 class RepositoryManifest(ArtifactEnvelope):
@@ -148,3 +155,116 @@ class ComparabilityReport(ArtifactEnvelope):
     comparable: bool
     dimensions: list[DimensionVerdict]
     policy_version: str
+
+
+class A2IntakeDecision(ArtifactEnvelope):
+    artifact_type: Literal["A2IntakeDecision"] = "A2IntakeDecision"
+    schema_version: Literal["1.0"] = "1.0"
+    verified: bool
+    mismatches: list[str] = Field(default_factory=list)
+    source_reachable: bool
+    policy_version: str = Field(min_length=1)
+
+
+def _empty_commands() -> list[RepositoryCommand]:
+    return []
+
+
+class VerificationManifest(ArtifactEnvelope):
+    """A2.31 output: only repository-owned commands the snapshot can justify.
+
+    Distinct from `RepositoryManifest.commands` (A2.30), which stays empty
+    until this node resolves argv against real, detected tool configuration.
+    """
+
+    artifact_type: Literal["VerificationManifest"] = "VerificationManifest"
+    schema_version: Literal["1.0"] = "1.0"
+    commands: list[RepositoryCommand] = Field(default_factory=_empty_commands)
+    rejected_commands: list[str] = Field(default_factory=list)
+
+
+class CollectorBinding(ContractModel):
+    requirement_id: str = Field(min_length=1)
+    collector_id: str = Field(min_length=1)
+    source_type: str = Field(min_length=1)
+    window_seconds: int = Field(gt=0)
+    aggregation: str = Field(min_length=1)
+    minimum_samples: int = Field(ge=1)
+
+
+def _empty_bindings() -> list[CollectorBinding]:
+    return []
+
+
+class CollectorPlan(ArtifactEnvelope):
+    artifact_type: Literal["CollectorPlan"] = "CollectorPlan"
+    schema_version: Literal["1.0"] = "1.0"
+    bindings: list[CollectorBinding] = Field(default_factory=_empty_bindings)
+    unresolved_requirements: list[str] = Field(default_factory=list)
+    catalog_version: str = Field(min_length=1)
+
+
+class EnvironmentManifest(ArtifactEnvelope):
+    artifact_type: Literal["EnvironmentManifest"] = "EnvironmentManifest"
+    schema_version: Literal["1.0"] = "1.0"
+    tool_versions: dict[str, str] = Field(default_factory=dict)
+    hardware_profile: str = Field(min_length=1)
+    concurrency: int = Field(ge=1)
+    cache_state: str = Field(min_length=1)
+
+
+class ExecutionAuthorization(ArtifactEnvelope):
+    """A2.50 output.
+
+    Not produced by any registered handler yet: authorizing argv, write
+    roots, egress, secret leases and worker jobs requires `PolicyPort`,
+    `SecretsBroker` and `WorkerBroker` wired into `NodePorts`, none of which
+    exist there today. The contract is defined ahead of the port work so the
+    fan-out nodes (A2.60-A2.64) that depend on it have a stable target shape.
+    """
+
+    artifact_type: Literal["ExecutionAuthorization"] = "ExecutionAuthorization"
+    schema_version: Literal["1.0"] = "1.0"
+    authorized: bool
+    denied_capabilities: list[str] = Field(default_factory=list)
+    allowed_write_roots: list[str] = Field(default_factory=list)
+    allowed_egress: list[str] = Field(default_factory=list)
+    worker_job_ids: list[str] = Field(default_factory=list)
+    policy_version: str = Field(min_length=1)
+
+
+def _empty_evidence_items() -> list[EvidenceItem]:
+    return []
+
+
+class BranchEvidenceRefs(ArtifactEnvelope):
+    """Shared fan-out branch container for A2.60-A2.64.
+
+    Each branch (static/test/metric/telemetry/source_map) owns a separate
+    intent and artifact set per the Lane 1 playbook fan-out rules, but they
+    share one schema shape since none of them can be populated with real
+    evidence without a collector/analyzer/worker port that does not exist
+    yet (see `ExecutionAuthorization`).
+    """
+
+    artifact_type: Literal["BranchEvidenceRefs"] = "BranchEvidenceRefs"
+    schema_version: Literal["1.0"] = "1.0"
+    branch_id: str = Field(pattern=r"^A2\.6[0-4]$")
+    branch_kind: Literal["static", "test", "metric", "telemetry", "source_map"]
+    evidence: list[EvidenceItem] = Field(default_factory=_empty_evidence_items)
+    coverage: dict[str, float] = Field(default_factory=dict)
+    unavailable_reason: str | None = None
+
+
+class RawEvidenceFanIn(ArtifactEnvelope):
+    artifact_type: Literal["RawEvidenceFanIn"] = "RawEvidenceFanIn"
+    schema_version: Literal["1.0"] = "1.0"
+    branch_status: dict[str, str] = Field(default_factory=dict)
+    evidence_ids: list[str] = Field(default_factory=list)
+
+
+class NormalizedEvidenceSet(ArtifactEnvelope):
+    artifact_type: Literal["NormalizedEvidenceSet"] = "NormalizedEvidenceSet"
+    schema_version: Literal["1.0"] = "1.0"
+    evidence: list[EvidenceItem] = Field(default_factory=_empty_evidence_items)
+    conversion_failures: list[str] = Field(default_factory=list)

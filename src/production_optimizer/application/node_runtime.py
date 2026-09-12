@@ -16,7 +16,12 @@ from production_optimizer.contracts.platform import IntentRecord, IntentStatus, 
 from production_optimizer.contracts.state import OptimizationState
 from production_optimizer.ports.artifacts import ArtifactStore
 from production_optimizer.ports.intents import IntentLedger
+from production_optimizer.ports.model_provider import ModelProviderPort
+from production_optimizer.ports.policy import PolicyPort
+from production_optimizer.ports.registries import RegistryPort
+from production_optimizer.ports.secrets import SecretsBroker
 from production_optimizer.ports.telemetry import TelemetryPort
+from production_optimizer.ports.workers import WorkerBroker
 
 from .node_contract import NodeSpec, SideEffectClass
 
@@ -54,11 +59,28 @@ class NodePorts:
     Only handlers whose `NodeSpec.side_effect_class` is not `PURE` are
     guaranteed a non-`None` bundle when the owning `NodeRuntime` is composed
     with real adapters; `telemetry` remains optional even then.
+
+    `policy`, `secrets`, `workers`, `registry` and `model` are optional
+    because not every lane's nodes need every capability. A handler that
+    needs one of these must check for `None` and refuse to run rather than
+    fabricate the capability — the same fail-closed rule `NodeRuntime`
+    itself applies to an unregistered node. `model` backs A3's
+    generator/judge nodes (see `ports/model_provider.py`); ADR-0002 records
+    that decision. `model_id` is the provider-specific model name to request
+    on that port (e.g. an Anthropic model alias vs. a local Ollama tag) --
+    each `ModelProviderPort` implementation accepts whatever its own backend
+    understands, so this must match whichever `model` is actually wired in.
     """
 
     artifacts: ArtifactStore
     intents: IntentLedger
     telemetry: TelemetryPort | None = None
+    policy: PolicyPort | None = None
+    secrets: SecretsBroker | None = None
+    workers: WorkerBroker | None = None
+    registry: RegistryPort | None = None
+    model: ModelProviderPort | None = None
+    model_id: str | None = None
 
 
 class BusinessNodeHandler(Protocol):
@@ -131,9 +153,38 @@ def _derive_idempotency_key(spec: NodeSpec, state: OptimizationState) -> str:
     source content digest" for A2 collectors); `idempotency_key_version` exists
     precisely so a future node can change its derivation without colliding
     with previously persisted intents.
+
+    A3's `A3.81`<->`A3.82`<->`A3.60` revision loop (`orchestration/subgraphs/
+    a3.py`) can revisit the same `node_id` multiple times for one case with
+    genuinely different semantic input (a new revision pass) — the base key
+    above cannot distinguish those calls, so `_execute_idempotent` would
+    replay pass 0's cached result forever instead of re-executing. Appending
+    the revision counter *only when it is nonzero* fixes that while leaving
+    every pass-0 key (and every lane that never sets this field, i.e.
+    A1/A2/B1/B2/C0) byte-identical to before — no existing idempotency key
+    format changes.
+
+    `resume_attempts` (see `application.resume.resume_case`) is the same
+    fix for a different replay: a node that halted with `pending_interrupt`
+    (e.g. A1.90's approval route) already has a COMPLETED intent recording
+    that halt, so re-invoking the graph as-is would just replay it forever
+    instead of letting the handler see the now-resolved `resume_command` and
+    pick a different route. Scoped to `resume_target_node` (the one node
+    that actually halted) so every other, already-completed node in the
+    graph still cache-hits on resume instead of recomputing -- recomputing
+    would give it a fresh `created_at` and a genuinely different digest for
+    an artifact_id LangGraph's `merge_artifact_refs` reducer already saw,
+    which surfaces as a hard conflict, not silent divergence.
     """
 
-    return f"{_require(state, 'case_id')}:{spec.node_id}:{spec.idempotency_key_version}"
+    base = f"{_require(state, 'case_id')}:{spec.node_id}:{spec.idempotency_key_version}"
+    revision_pass = state.get("a3_revision_attempts", 0)
+    if revision_pass:
+        base = f"{base}:rev{revision_pass}"
+    resume_attempt = state.get("resume_attempts", 0)
+    if resume_attempt and state.get("resume_target_node") == spec.node_id:
+        base = f"{base}:resume{resume_attempt}"
+    return base
 
 
 class NodeRuntime:

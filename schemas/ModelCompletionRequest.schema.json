@@ -1,0 +1,84 @@
+{
+  "$defs": {
+    "ModelMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "role": {
+          "minLength": 1,
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ModelMessage",
+      "type": "object"
+    },
+    "ModelRole": {
+      "description": "Which capacity a model call is made in.\n\nCarrying this on the request itself (not just as an adapter-side\nconvention) is what makes \"the generator cannot judge itself\" (A3\nplaybook) mechanically checkable: a judge call is a structurally\nseparate `ModelCompletionRequest`, never a continuation of a generator\nconversation.",
+      "enum": [
+        "generator",
+        "judge"
+      ],
+      "title": "ModelRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "max_output_tokens": {
+      "exclusiveMinimum": 0,
+      "title": "Max Output Tokens",
+      "type": "integer"
+    },
+    "messages": {
+      "items": {
+        "$ref": "#/$defs/ModelMessage"
+      },
+      "minItems": 1,
+      "title": "Messages",
+      "type": "array"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "prompt_version": {
+      "minLength": 1,
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "response_schema": {
+      "additionalProperties": true,
+      "title": "Response Schema",
+      "type": "object"
+    },
+    "role": {
+      "$ref": "#/$defs/ModelRole"
+    }
+  },
+  "required": [
+    "role",
+    "model_id",
+    "prompt_version",
+    "messages",
+    "response_schema",
+    "max_output_tokens",
+    "idempotency_key"
+  ],
+  "title": "ModelCompletionRequest",
+  "type": "object"
+}

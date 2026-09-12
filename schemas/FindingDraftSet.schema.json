@@ -1,0 +1,228 @@
+{
+  "$defs": {
+    "FindingDraft": {
+      "additionalProperties": false,
+      "description": "A3.40 generator output: everything `Finding` needs except `trust_level`\nand `judgement` — those are assigned downstream (A3.50 judge, A3.51\nmaturity) and a generator must not self-assign them.",
+      "properties": {
+        "analyzer_coverage": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Analyzer Coverage",
+          "type": "object"
+        },
+        "causal_claim": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Causal Claim",
+          "type": "string"
+        },
+        "claim_type": {
+          "enum": [
+            "observation",
+            "hypothesis",
+            "verified_cause"
+          ],
+          "title": "Claim Type",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "counterevidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Counterevidence Ids",
+          "type": "array"
+        },
+        "finding_id": {
+          "minLength": 1,
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "problem_signal_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Problem Signal Ids",
+          "type": "array"
+        },
+        "runtime_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Path"
+        },
+        "scope_files": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scope Files",
+          "type": "array"
+        },
+        "scope_symbols": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Scope Symbols",
+          "type": "array"
+        },
+        "supporting_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Supporting Evidence Ids",
+          "type": "array"
+        },
+        "symptom": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Symptom",
+          "type": "string"
+        },
+        "unknowns": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Unknowns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "finding_id",
+        "problem_signal_ids",
+        "claim_type",
+        "symptom",
+        "causal_claim",
+        "supporting_evidence_ids",
+        "confidence"
+      ],
+      "title": "FindingDraft",
+      "type": "object"
+    },
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "FindingDraftSet",
+      "default": "FindingDraftSet",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "drafts": {
+      "items": {
+        "$ref": "#/$defs/FindingDraft"
+      },
+      "title": "Drafts",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "generation_failures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Generation Failures",
+      "type": "array"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest"
+  ],
+  "title": "FindingDraftSet",
+  "type": "object"
+}

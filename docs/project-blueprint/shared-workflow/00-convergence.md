@@ -31,8 +31,12 @@ manual Lane A shortcut from bypassing evidence gates.
 - `BR-C0-002`: Request, baseline and solutions must reference the same source snapshot.
 - `BR-C0-003`: At least one solution is eligible; high score cannot override hard failure.
 - `BR-C0-004`: Stale or mismatched artifacts fail closed.
-- Digest mismatch routes to the producer stage; missing eligible solutions route
-  to A3/B2; an obsolete source closes or versions the case.
+- Target design: digest mismatch routes to the producer stage; missing eligible
+  solutions route to A3/B2; an obsolete source closes or versions the case.
+  **As built**, the compiled graph (`orchestration/subgraphs/c0.py`) only has
+  two outcomes at C0.60 — `continue` or `rejected`→END — so every failure
+  reason above is recorded in `ConvergenceDecision.reasons`
+  (`application/c0_handlers.py`), not routed to a distinct node.
 
 Definition of done: `ConvergedCase@1.0` is complete, fresh, digest-valid and
 accepted by deterministic policy.

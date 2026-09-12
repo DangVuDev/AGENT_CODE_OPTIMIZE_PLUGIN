@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A3.82 output: which findings/strategies get regenerated, and why.\n\n`SolutionStrategy.gate_reasons`/`Finding` maturity failures already say\n*what* was wrong; this records the *decision* A3.82 made about it\n(provenance for the revision loop, per the \"Must write artifact store\"\nmatrix). `targeted_*_ids` are the only items A3.60 may regenerate on the\nnext pass — everything else is carried forward unchanged, per the\nplaybook (\"A3.82 may target only rejected findings/strategies; accepted\nartifacts are reused\").",
+  "properties": {
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "RevisionDirective",
+      "default": "RevisionDirective",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "attempt_number": {
+      "minimum": 1,
+      "title": "Attempt Number",
+      "type": "integer"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "targeted_finding_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Targeted Finding Ids",
+      "type": "array"
+    },
+    "targeted_strategy_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Targeted Strategy Ids",
+      "type": "array"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "attempt_number",
+    "reason"
+  ],
+  "title": "RevisionDirective",
+  "type": "object"
+}

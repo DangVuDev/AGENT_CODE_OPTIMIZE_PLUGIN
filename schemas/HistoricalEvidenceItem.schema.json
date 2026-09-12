@@ -1,0 +1,64 @@
+{
+  "additionalProperties": false,
+  "description": "One real historical observation -- shaped like `a2.EvidenceItem` but\ndefined here rather than imported, since only `a3.py` may import from\n`a2.py` per the platform wiring plan (see the module-level NOTE above).",
+  "properties": {
+    "environment_id": {
+      "minLength": 1,
+      "title": "Environment Id",
+      "type": "string"
+    },
+    "evidence_id": {
+      "minLength": 1,
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "feature_id": {
+      "minLength": 1,
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    },
+    "workload_id": {
+      "minLength": 1,
+      "title": "Workload Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "evidence_id",
+    "feature_id",
+    "workload_id",
+    "environment_id",
+    "observed_at"
+  ],
+  "title": "HistoricalEvidenceItem",
+  "type": "object"
+}

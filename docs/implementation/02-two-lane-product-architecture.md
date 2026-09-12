@@ -1,6 +1,7 @@
 # 02. Two-Lane Product Implementation Architecture
 
-Status: normative design; no business node implementation yet  
+Status: normative design; all 99 business nodes now have real production
+handlers implementing this design (see `04-orchestration-frame-as-built.md`)  
 Scope: Lane A, Lane B, and C0 convergence  
 Prerequisite: [`00-bootstrap-and-build-order.md`](00-bootstrap-and-build-order.md)
 
@@ -126,7 +127,7 @@ LaneASubgraph
 ```
 
 Exact conditional edges and node/framework ownership remain in
-[`lane-1-langgraph-architecture.md`](lane-1-langgraph-architecture.md).
+[`05-lane-1-detailed-implementation-playbook.md`](05-lane-1-detailed-implementation-playbook.md).
 
 ## 6. Lane B Runtime Topology
 

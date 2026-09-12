@@ -1,0 +1,18 @@
+[project]
+name = "urlshortener-sample"
+version = "0.1.0"
+description = "Fixture target codebase for exercising Lane 1 (A1/A2/A3) against all four VerificationManifest command kinds at once."
+requires-python = ">=3.11"
+dependencies = ["pytest-benchmark>=4.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+ignore_missing_imports = true

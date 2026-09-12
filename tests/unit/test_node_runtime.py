@@ -83,3 +83,19 @@ def test_root_rejects_non_catalog_registration() -> None:
     runtime = _runtime("X9.99", NodeExecution())
     with pytest.raises(ValueError, match="outside the canonical catalog"):
         build_root_graph(runtime=runtime)
+
+
+def test_node_ports_optional_capabilities_default_to_none() -> None:
+    class _StubArtifacts:
+        pass
+
+    class _StubIntents:
+        pass
+
+    ports = NodePorts(artifacts=_StubArtifacts(), intents=_StubIntents())  # type: ignore[arg-type]
+
+    assert ports.telemetry is None
+    assert ports.policy is None
+    assert ports.secrets is None
+    assert ports.workers is None
+    assert ports.registry is None

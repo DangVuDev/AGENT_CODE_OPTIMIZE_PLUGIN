@@ -1,0 +1,689 @@
+{
+  "$defs": {
+    "CriterionImpact": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "enum": [
+            "measured",
+            "forecast"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "criterion_id": {
+          "minLength": 1,
+          "title": "Criterion Id",
+          "type": "string"
+        },
+        "direction": {
+          "enum": [
+            "improves",
+            "worsens",
+            "neutral",
+            "unknown"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "magnitude": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Magnitude"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        }
+      },
+      "required": [
+        "criterion_id",
+        "direction",
+        "confidence",
+        "basis"
+      ],
+      "title": "CriterionImpact",
+      "type": "object"
+    },
+    "ExperimentPhaseTemplate": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_observations": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Expected Observations",
+          "type": "array"
+        },
+        "phase_id": {
+          "minLength": 1,
+          "title": "Phase Id",
+          "type": "string"
+        },
+        "phase_kind": {
+          "enum": [
+            "diagnostic",
+            "implementation"
+          ],
+          "title": "Phase Kind",
+          "type": "string"
+        },
+        "risk_factors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Risk Factors",
+          "type": "array"
+        },
+        "sequence": {
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "treatment": {
+          "$ref": "#/$defs/Treatment"
+        }
+      },
+      "required": [
+        "phase_id",
+        "sequence",
+        "phase_kind",
+        "treatment"
+      ],
+      "title": "ExperimentPhaseTemplate",
+      "type": "object"
+    },
+    "ImpactAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {
+          "minLength": 1,
+          "title": "Assessment Id",
+          "type": "string"
+        },
+        "criterion_impacts": {
+          "items": {
+            "$ref": "#/$defs/CriterionImpact"
+          },
+          "minItems": 1,
+          "title": "Criterion Impacts",
+          "type": "array"
+        },
+        "guardrail_impacts": {
+          "items": {
+            "$ref": "#/$defs/CriterionImpact"
+          },
+          "title": "Guardrail Impacts",
+          "type": "array"
+        },
+        "strategy_id": {
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assessment_id",
+        "strategy_id",
+        "criterion_impacts"
+      ],
+      "title": "ImpactAssessment",
+      "type": "object"
+    },
+    "RiskAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment_id": {
+          "minLength": 1,
+          "title": "Assessment Id",
+          "type": "string"
+        },
+        "blast_radius": {
+          "minLength": 1,
+          "title": "Blast Radius",
+          "type": "string"
+        },
+        "factors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Factors",
+          "type": "array"
+        },
+        "migration_impact": {
+          "title": "Migration Impact",
+          "type": "boolean"
+        },
+        "reversibility": {
+          "enum": [
+            "instant",
+            "fast",
+            "slow",
+            "irreversible"
+          ],
+          "title": "Reversibility",
+          "type": "string"
+        },
+        "risk_tier": {
+          "enum": [
+            "experiment_config",
+            "prompt",
+            "code",
+            "architecture"
+          ],
+          "title": "Risk Tier",
+          "type": "string"
+        },
+        "security_impact": {
+          "title": "Security Impact",
+          "type": "boolean"
+        },
+        "strategy_id": {
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "uncertainty": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Uncertainty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "assessment_id",
+        "strategy_id",
+        "risk_tier",
+        "blast_radius",
+        "reversibility",
+        "uncertainty",
+        "migration_impact",
+        "security_impact"
+      ],
+      "title": "RiskAssessment",
+      "type": "object"
+    },
+    "RollbackPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "command_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Command Id"
+        },
+        "mechanism": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Mechanism",
+          "type": "string"
+        },
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "reversible": {
+          "title": "Reversible",
+          "type": "boolean"
+        },
+        "strategy_id": {
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "verification": {
+          "minLength": 1,
+          "title": "Verification",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "strategy_id",
+        "mechanism",
+        "verification",
+        "reversible"
+      ],
+      "title": "RollbackPlan",
+      "type": "object"
+    },
+    "ScopeResolutionEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "exists": {
+          "title": "Exists",
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "file",
+            "symbol",
+            "config_key",
+            "prompt",
+            "dependency"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "path_or_symbol": {
+          "minLength": 1,
+          "title": "Path Or Symbol",
+          "type": "string"
+        },
+        "proposed_creation": {
+          "default": false,
+          "title": "Proposed Creation",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "path_or_symbol",
+        "kind",
+        "exists"
+      ],
+      "title": "ScopeResolutionEntry",
+      "type": "object"
+    },
+    "ScopeResolutionReport": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/ScopeResolutionEntry"
+          },
+          "minItems": 1,
+          "title": "Entries",
+          "type": "array"
+        },
+        "fully_resolved": {
+          "title": "Fully Resolved",
+          "type": "boolean"
+        },
+        "report_id": {
+          "minLength": 1,
+          "title": "Report Id",
+          "type": "string"
+        },
+        "strategy_id": {
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_id",
+        "strategy_id",
+        "entries",
+        "fully_resolved"
+      ],
+      "title": "ScopeResolutionReport",
+      "type": "object"
+    },
+    "TradeoffAnalysis": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_id": {
+          "minLength": 1,
+          "title": "Analysis Id",
+          "type": "string"
+        },
+        "assumptions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Assumptions",
+          "type": "array"
+        },
+        "cons": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Cons",
+          "type": "array"
+        },
+        "effort": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Effort",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "operational_effects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Operational Effects",
+          "type": "array"
+        },
+        "opportunity_cost": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opportunity Cost"
+        },
+        "prerequisites": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Prerequisites",
+          "type": "array"
+        },
+        "pros": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Pros",
+          "type": "array"
+        },
+        "strategy_id": {
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "uncertainty": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Uncertainty",
+          "type": "number"
+        }
+      },
+      "required": [
+        "analysis_id",
+        "strategy_id",
+        "pros",
+        "cons",
+        "effort",
+        "uncertainty"
+      ],
+      "title": "TradeoffAnalysis",
+      "type": "object"
+    },
+    "Treatment": {
+      "additionalProperties": false,
+      "properties": {
+        "after": {
+          "minLength": 1,
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "minLength": 1,
+          "title": "Before",
+          "type": "string"
+        },
+        "variable": {
+          "minLength": 1,
+          "title": "Variable",
+          "type": "string"
+        }
+      },
+      "required": [
+        "variable",
+        "before",
+        "after"
+      ],
+      "title": "Treatment",
+      "type": "object"
+    },
+    "ValidationPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "benchmark_protocol": {
+          "minLength": 1,
+          "title": "Benchmark Protocol",
+          "type": "string"
+        },
+        "expected_metric_movements": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Expected Metric Movements",
+          "type": "object"
+        },
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "stop_conditions": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Stop Conditions",
+          "type": "array"
+        },
+        "strategy_id": {
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "test_command_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Test Command Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "plan_id",
+        "strategy_id",
+        "benchmark_protocol",
+        "stop_conditions"
+      ],
+      "title": "ValidationPlan",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A strategy under construction between A3.60 and A3.80.\n\nMirrors `SolutionStrategy` but with every field only A3.70/A3.80 (scope,\nrisk) or A3.62-A3.64 (impact, tradeoff, validation, rollback) can supply\nleft optional — a generator at A3.60 genuinely cannot know them yet.\nOnce every optional field is filled (by A3.80), the draft is converted\nto a real `SolutionStrategy` — see `SolutionStrategySet`.",
+  "properties": {
+    "assumptions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "eligible": {
+      "default": true,
+      "title": "Eligible",
+      "type": "boolean"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "finding_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Finding Ids",
+      "type": "array"
+    },
+    "gate_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Gate Reasons",
+      "type": "array"
+    },
+    "impact_assessment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ImpactAssessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "mechanism": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Mechanism",
+      "type": "string"
+    },
+    "phase_templates": {
+      "items": {
+        "$ref": "#/$defs/ExperimentPhaseTemplate"
+      },
+      "minItems": 1,
+      "title": "Phase Templates",
+      "type": "array"
+    },
+    "risk_assessment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RiskAssessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "risk_ceiling": {
+      "enum": [
+        "experiment_config",
+        "prompt",
+        "code",
+        "architecture"
+      ],
+      "title": "Risk Ceiling",
+      "type": "string"
+    },
+    "rollback_plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RollbackPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "scope_resolution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ScopeResolutionReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "strategy_tradeoffs": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Strategy Tradeoffs",
+      "type": "string"
+    },
+    "target_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Paths",
+      "type": "array"
+    },
+    "title": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "tradeoff_analysis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TradeoffAnalysis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "validation_plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValidationPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "strategy_id",
+    "finding_ids",
+    "title",
+    "mechanism",
+    "strategy_tradeoffs",
+    "phase_templates",
+    "risk_ceiling",
+    "evidence_ids"
+  ],
+  "title": "StrategyDraft",
+  "type": "object"
+}

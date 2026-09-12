@@ -196,7 +196,14 @@ def _a1_30(state: OptimizationState, ports: NodePorts) -> NodeExecution:
         LocalSourceIdentity(
             **_base_envelope(state, "LocalSourceIdentity"),
             repository_id=_repository_id(local_path),
-            allowed_root_id=_repository_id(allowed_root),
+            # A real filesystem path, not a hash: `SourceReference` (A1.95)
+            # carries this straight through to `OptimizationRequest.source`,
+            # and A2.10/A2.20 reconstruct the canonical path as
+            # `Path(allowed_root_id) / relative_path` -- that only works if
+            # this is the real allowed root, not an opaque identifier.
+            # `repository_id` above stays hashed since nothing needs it as
+            # a path.
+            allowed_root_id=str(allowed_root),
             canonical_path=str(local_path),
             relative_path=str(local_path.relative_to(allowed_root)) or ".",
             git_revision=git_revision or None,
@@ -309,6 +316,19 @@ def _a1_61(state: OptimizationState, ports: NodePorts) -> NodeExecution:
 
 
 def _a1_62(state: OptimizationState, ports: NodePorts) -> NodeExecution:
+    """Freeze the correctness guardrail.
+
+    `metric_id`/`operator`/`threshold`/`unit` are pinned to the exact shape
+    A2's real unit-test collector produces (`evidence_type="unit_command_result"`,
+    the command's raw process exit code — see `a2_handlers.py`'s
+    `_run_command_evidence_branch`, `command_kinds=("unit",)`). A guardrail
+    that names a metric A2 never actually emits would never fire, which is
+    worse than useless — it would look like a real correctness check while
+    silently checking nothing. `draft.guardrail_metric_id` stays available
+    for a future per-request override; today it only ever carries the one
+    default `_draft_from_payload` sets, which is this same value.
+    """
+
     draft = _read_model(ports, state, _require_ref(state, "RawRequestDraft"), RawRequestDraft)
     missing: list[str] = []
     if not draft.guardrail_metric_id:
@@ -320,8 +340,8 @@ def _a1_62(state: OptimizationState, ports: NodePorts) -> NodeExecution:
                 guardrail_id="correctness",
                 metric_id=draft.guardrail_metric_id or "",
                 operator="eq",
-                threshold=1.0,
-                unit="pass",
+                threshold=0.0,
+                unit="exit_code",
             )
         )
     artifact = _seal(
@@ -539,7 +559,27 @@ def _a1_90(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     approval: ApprovalBinding | None = None
     route = "continue"
     reasons: list[str] = []
-    if not quality.passed:
+    resume_command = state.get("resume_command")
+    if resume_command is not None:
+        # A prior run already halted this exact case at A1.90 with
+        # `NodeRoute.APPROVAL` (see the `elif payload.actor_role ...` branch
+        # below) -- `application.resume.resume_case` already verified this
+        # command against that halt's `InterruptEnvelope` before re-invoking
+        # the graph, so the out-of-band decision is authoritative here and
+        # skips re-deriving one from `payload.actor_role`.
+        if resume_command.decision == "approve":
+            approval = ApprovalBinding(
+                approval_id=f"{_required_state_str(state, 'case_id')}-A1-APPROVAL",
+                actor_id=resume_command.actor_id,
+                actor_role=sorted(resume_command.actor_roles)[0],
+                decision="approve",
+                artifact_digest=fingerprint,
+                policy_version=resume_command.policy_version,
+            )
+        else:
+            route = "rejected"
+            reasons = [f"resumed with decision {resume_command.decision!r}"]
+    elif not quality.passed:
         route = "rejected"
         reasons = [*quality.missing_fields, *quality.conflicts]
     elif payload.actor_role not in {"owner", "approver", "platform_owner"}:
@@ -656,7 +696,7 @@ def _draft_from_payload(state: OptimizationState, payload: ManualCasePayload) ->
         direction=cast("Any", direction),
         target=float(target) if isinstance(target, int | float) else None,
         unit=cast("str | None", unit),
-        guardrail_metric_id="unit_tests",
+        guardrail_metric_id=(_str(structured, "guardrail_metric_id") or "unit_command_result"),
         workload_id=workload_id,
         dataset_id=_nested_str(structured, "workload", "dataset_id"),
         environment_id=environment_id,

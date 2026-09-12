@@ -17,6 +17,39 @@ from .envelope import ArtifactEnvelope
 # keeping them separate would only duplicate fields with no behavioral gain.
 
 
+class A3IntakeDecision(ArtifactEnvelope):
+    artifact_type: Literal["A3IntakeDecision"] = "A3IntakeDecision"
+    schema_version: Literal["1.0"] = "1.0"
+    verified: bool
+    mismatches: list[str] = Field(default_factory=list)
+    gates_passed: bool
+
+
+class EvidenceCatalogEntry(ContractModel):
+    evidence_id: str = Field(min_length=1)
+    metric_id: str | None = None
+    trust_level: TrustLevel
+    observed_at: datetime
+
+
+def _empty_catalog_entries() -> list[EvidenceCatalogEntry]:
+    return []
+
+
+class EvidenceCatalog(ArtifactEnvelope):
+    """A3.11 output: a lookup index over A2's `EvidenceBundle`.
+
+    `by_metric` is a lookup authority only — presence here is not itself
+    causal proof of anything, per the playbook ("Index is lookup authority,
+    not causal proof").
+    """
+
+    artifact_type: Literal["EvidenceCatalog"] = "EvidenceCatalog"
+    schema_version: Literal["1.0"] = "1.0"
+    entries: list[EvidenceCatalogEntry] = Field(default_factory=_empty_catalog_entries)
+    by_metric: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class ProblemSignal(ContractModel):
     signal_id: str = Field(min_length=1)
     criterion_id: str = Field(min_length=1)
@@ -31,6 +64,36 @@ class ProblemSignal(ContractModel):
     detected_at: datetime
 
 
+def _empty_problem_signals() -> list[ProblemSignal]:
+    return []
+
+
+class ProblemSignalSet(ArtifactEnvelope):
+    """A3.20 output: every measured problem, before priority scoring.
+
+    An empty list is a valid, honest outcome ("No measured problem ->
+    close NO_ACTIONABLE_PROBLEM" per the playbook), not an error.
+    """
+
+    artifact_type: Literal["ProblemSignalSet"] = "ProblemSignalSet"
+    schema_version: Literal["1.0"] = "1.0"
+    signals: list[ProblemSignal] = Field(default_factory=_empty_problem_signals)
+
+
+class PrioritizedSignalSet(ArtifactEnvelope):
+    """A3.21 output: the same signals, ranked — nothing is dropped.
+
+    Distinct `artifact_type` from `ProblemSignalSet` (not a re-seal of it)
+    so the two coexist in `state["artifact_refs"]` without an artifact_id
+    collision.
+    """
+
+    artifact_type: Literal["PrioritizedSignalSet"] = "PrioritizedSignalSet"
+    schema_version: Literal["1.0"] = "1.0"
+    signals: list[ProblemSignal] = Field(default_factory=_empty_problem_signals)
+    priority_scores: dict[str, float] = Field(default_factory=dict)
+
+
 class AnalyzerObservation(ContractModel):
     observation_id: str = Field(min_length=1)
     source: Literal["syntax", "semantic", "domain", "runtime"]
@@ -43,6 +106,28 @@ class AnalyzerObservation(ContractModel):
     polarity: Literal["positive", "negative"]
     coverage: float = Field(ge=0, le=1)
     evidence_ids: list[str] = Field(default_factory=list)
+
+
+def _empty_observations() -> list[AnalyzerObservation]:
+    return []
+
+
+class AnalyzerObservationBranch(ArtifactEnvelope):
+    """Shared fan-out shape for A3.30-A3.33 — same pattern as A2's
+    `BranchEvidenceRefs`: one schema, `branch_id`/`source` differentiate.
+
+    `unavailable_reason` set + empty `observations` is a legitimate result
+    (e.g. A3.32 with no registered domain analyzer, A3.33 with no telemetry
+    evidence to correlate), not a stub.
+    """
+
+    artifact_type: Literal["AnalyzerObservationBranch"] = "AnalyzerObservationBranch"
+    schema_version: Literal["1.0"] = "1.0"
+    branch_id: str = Field(pattern=r"^A3\.3[0-3]$")
+    source: Literal["syntax", "semantic", "domain", "runtime"]
+    observations: list[AnalyzerObservation] = Field(default_factory=_empty_observations)
+    coverage_gaps: list[str] = Field(default_factory=list)
+    unavailable_reason: str | None = None
 
 
 class CitationResolutionEntry(ContractModel):
@@ -69,6 +154,16 @@ class CitationResolutionReport(ContractModel):
         return self
 
 
+def _empty_citation_reports() -> list[CitationResolutionReport]:
+    return []
+
+
+class CitationResolutionReportSet(ArtifactEnvelope):
+    artifact_type: Literal["CitationResolutionReportSet"] = "CitationResolutionReportSet"
+    schema_version: Literal["1.0"] = "1.0"
+    reports: list[CitationResolutionReport] = Field(default_factory=_empty_citation_reports)
+
+
 class FindingJudgement(ContractModel):
     judge_id: str = Field(min_length=1)
     finding_id: str = Field(min_length=1)
@@ -76,6 +171,48 @@ class FindingJudgement(ContractModel):
     reasons: list[str] = Field(min_length=1)
     model_id: str = Field(min_length=1)
     model_version: str = Field(min_length=1)
+
+
+def _empty_judgements() -> list[FindingJudgement]:
+    return []
+
+
+class FindingJudgementSet(ArtifactEnvelope):
+    artifact_type: Literal["FindingJudgementSet"] = "FindingJudgementSet"
+    schema_version: Literal["1.0"] = "1.0"
+    judgements: list[FindingJudgement] = Field(default_factory=_empty_judgements)
+
+
+class FindingDraft(ContractModel):
+    """A3.40 generator output: everything `Finding` needs except `trust_level`
+    and `judgement` — those are assigned downstream (A3.50 judge, A3.51
+    maturity) and a generator must not self-assign them.
+    """
+
+    finding_id: str = Field(min_length=1)
+    problem_signal_ids: list[str] = Field(min_length=1)
+    claim_type: Literal["observation", "hypothesis", "verified_cause"]
+    symptom: str = Field(min_length=1, max_length=2000)
+    scope_files: list[str] = Field(default_factory=list)
+    scope_symbols: list[str] = Field(default_factory=list)
+    runtime_path: str | None = None
+    causal_claim: str = Field(min_length=1, max_length=2000)
+    supporting_evidence_ids: list[str] = Field(min_length=1)
+    counterevidence_ids: list[str] = Field(default_factory=list)
+    analyzer_coverage: dict[str, float] = Field(default_factory=dict)
+    confidence: float = Field(ge=0, le=1)
+    unknowns: list[str] = Field(default_factory=list)
+
+
+def _empty_finding_drafts() -> list[FindingDraft]:
+    return []
+
+
+class FindingDraftSet(ArtifactEnvelope):
+    artifact_type: Literal["FindingDraftSet"] = "FindingDraftSet"
+    schema_version: Literal["1.0"] = "1.0"
+    drafts: list[FindingDraft] = Field(default_factory=_empty_finding_drafts)
+    generation_failures: list[str] = Field(default_factory=list)
 
 
 class Finding(ContractModel):
@@ -201,6 +338,56 @@ class ExperimentPhaseTemplate(ContractModel):
     expected_observations: list[str] = Field(default_factory=list)
 
 
+class StrategyDraft(ContractModel):
+    """A strategy under construction between A3.60 and A3.80.
+
+    Mirrors `SolutionStrategy` but with every field only A3.70/A3.80 (scope,
+    risk) or A3.62-A3.64 (impact, tradeoff, validation, rollback) can supply
+    left optional — a generator at A3.60 genuinely cannot know them yet.
+    Once every optional field is filled (by A3.80), the draft is converted
+    to a real `SolutionStrategy` — see `SolutionStrategySet`.
+    """
+
+    strategy_id: str = Field(min_length=1)
+    finding_ids: list[str] = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=200)
+    mechanism: str = Field(min_length=1, max_length=4000)
+    strategy_tradeoffs: str = Field(min_length=1, max_length=2000)
+    phase_templates: list[ExperimentPhaseTemplate] = Field(min_length=1)
+    risk_ceiling: Literal["experiment_config", "prompt", "code", "architecture"]
+    evidence_ids: list[str] = Field(min_length=1)
+    assumptions: list[str] = Field(default_factory=list)
+    target_paths: list[str] = Field(default_factory=list)
+    impact_assessment: ImpactAssessment | None = None
+    tradeoff_analysis: TradeoffAnalysis | None = None
+    validation_plan: ValidationPlan | None = None
+    rollback_plan: RollbackPlan | None = None
+    scope_resolution: ScopeResolutionReport | None = None
+    risk_assessment: RiskAssessment | None = None
+    eligible: bool = True
+    gate_reasons: list[str] = Field(default_factory=list)
+
+
+def _empty_strategy_drafts() -> list[StrategyDraft]:
+    return []
+
+
+class StrategyDraftSet(ArtifactEnvelope):
+    """Carries strategy drafts through A3.60-A3.70.
+
+    Reused, unmodified, by each stage in that linear chain — each node
+    reads the previous stage's ref by producer node id (never by bare
+    `artifact_type`, which would be ambiguous once more than one stage has
+    written this same type) and writes its own, following the same
+    node-scoped `artifact_id` technique `application/a2_handlers.py` uses
+    for `BranchEvidenceRefs` (`_branch_envelope`/`_require_branch_ref`).
+    """
+
+    artifact_type: Literal["StrategyDraftSet"] = "StrategyDraftSet"
+    schema_version: Literal["1.0"] = "1.0"
+    strategies: list[StrategyDraft] = Field(default_factory=_empty_strategy_drafts)
+
+
 class SolutionStrategy(ContractModel):
     strategy_id: str = Field(min_length=1)
     finding_ids: list[str] = Field(min_length=1)
@@ -225,6 +412,23 @@ class SolutionStrategy(ContractModel):
         if not self.eligible and not self.gate_reasons:
             raise ValueError("an ineligible strategy must include gate reasons")
         return self
+
+
+def _empty_solution_strategies() -> list[SolutionStrategy]:
+    return []
+
+
+class SolutionStrategySet(ArtifactEnvelope):
+    """A3.80 output: fully-assembled strategies, before the A3.81 quality gate.
+
+    Distinct from `SolutionPortfolio` (A3.90's sealed handoff) because
+    `SolutionPortfolio` requires `quality_report_digest`, which does not
+    exist until A3.81 runs.
+    """
+
+    artifact_type: Literal["SolutionStrategySet"] = "SolutionStrategySet"
+    schema_version: Literal["1.0"] = "1.0"
+    strategies: list[SolutionStrategy] = Field(default_factory=_empty_solution_strategies)
 
 
 class FindingSet(ArtifactEnvelope):
@@ -286,3 +490,23 @@ class A3QualityReport(ArtifactEnvelope):
         if self.passed != computed:
             raise ValueError("passed must match the aggregated gate results")
         return self
+
+
+class RevisionDirective(ArtifactEnvelope):
+    """A3.82 output: which findings/strategies get regenerated, and why.
+
+    `SolutionStrategy.gate_reasons`/`Finding` maturity failures already say
+    *what* was wrong; this records the *decision* A3.82 made about it
+    (provenance for the revision loop, per the "Must write artifact store"
+    matrix). `targeted_*_ids` are the only items A3.60 may regenerate on the
+    next pass — everything else is carried forward unchanged, per the
+    playbook ("A3.82 may target only rejected findings/strategies; accepted
+    artifacts are reused").
+    """
+
+    artifact_type: Literal["RevisionDirective"] = "RevisionDirective"
+    schema_version: Literal["1.0"] = "1.0"
+    attempt_number: int = Field(ge=1)
+    targeted_finding_ids: list[str] = Field(default_factory=list)
+    targeted_strategy_ids: list[str] = Field(default_factory=list)
+    reason: str = Field(min_length=1)

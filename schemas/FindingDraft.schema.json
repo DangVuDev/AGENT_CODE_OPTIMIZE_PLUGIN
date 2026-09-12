@@ -1,0 +1,112 @@
+{
+  "additionalProperties": false,
+  "description": "A3.40 generator output: everything `Finding` needs except `trust_level`\nand `judgement` — those are assigned downstream (A3.50 judge, A3.51\nmaturity) and a generator must not self-assign them.",
+  "properties": {
+    "analyzer_coverage": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Analyzer Coverage",
+      "type": "object"
+    },
+    "causal_claim": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Causal Claim",
+      "type": "string"
+    },
+    "claim_type": {
+      "enum": [
+        "observation",
+        "hypothesis",
+        "verified_cause"
+      ],
+      "title": "Claim Type",
+      "type": "string"
+    },
+    "confidence": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "counterevidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Counterevidence Ids",
+      "type": "array"
+    },
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "problem_signal_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Problem Signal Ids",
+      "type": "array"
+    },
+    "runtime_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Runtime Path"
+    },
+    "scope_files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Scope Files",
+      "type": "array"
+    },
+    "scope_symbols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Scope Symbols",
+      "type": "array"
+    },
+    "supporting_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Supporting Evidence Ids",
+      "type": "array"
+    },
+    "symptom": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Symptom",
+      "type": "string"
+    },
+    "unknowns": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unknowns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "finding_id",
+    "problem_signal_ids",
+    "claim_type",
+    "symptom",
+    "causal_claim",
+    "supporting_evidence_ids",
+    "confidence"
+  ],
+  "title": "FindingDraft",
+  "type": "object"
+}

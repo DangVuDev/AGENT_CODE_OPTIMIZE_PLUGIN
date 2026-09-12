@@ -33,7 +33,7 @@ LocalOptimizationRootGraph
 The diagram is an inventory summary. Conditional edges, fan-in reducers,
 interrupt payloads, targeted A3 revision routes, node runtime protocol, and the
 node-level framework matrix are normative in
-[`../../implementation/lane-1-langgraph-architecture.md`](../../implementation/lane-1-langgraph-architecture.md).
+[`../../implementation/05-lane-1-detailed-implementation-playbook.md`](../../implementation/05-lane-1-detailed-implementation-playbook.md).
 
 ## State Ownership
 

@@ -1,0 +1,68 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "input_tokens": {
+      "minimum": 0,
+      "title": "Input Tokens",
+      "type": "integer"
+    },
+    "model_id": {
+      "minLength": 1,
+      "title": "Model Id",
+      "type": "string"
+    },
+    "model_version": {
+      "minLength": 1,
+      "title": "Model Version",
+      "type": "string"
+    },
+    "output_tokens": {
+      "minimum": 0,
+      "title": "Output Tokens",
+      "type": "integer"
+    },
+    "parsed_json": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parsed Json"
+    },
+    "raw_text": {
+      "title": "Raw Text",
+      "type": "string"
+    },
+    "request_id": {
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "stop_reason": {
+      "minLength": 1,
+      "title": "Stop Reason",
+      "type": "string"
+    },
+    "valid_json": {
+      "title": "Valid Json",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "request_id",
+    "model_id",
+    "model_version",
+    "raw_text",
+    "valid_json",
+    "input_tokens",
+    "output_tokens",
+    "stop_reason"
+  ],
+  "title": "ModelCompletionResult",
+  "type": "object"
+}

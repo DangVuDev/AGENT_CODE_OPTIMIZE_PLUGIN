@@ -174,9 +174,20 @@ comparison unless a versioned policy explicitly proves it immaterial.
 - Contract fixtures cover forward/backward compatibility and canonical JSON
   digest stability.
 
-## Required Contract Work Before Production
+## Contract Implementation Status
 
-Every vocabulary row above needs a Pydantic model, generated JSON Schema,
-example fixture, redaction classification, owner, migration reader, digest test
-and adapter contract test. Until those exist, the artifact is a target contract,
-not an implemented production interface.
+The A1-C0 chain artifacts this vocabulary describes — `OptimizationRequest`,
+`SourceSnapshot`, `BaselineSnapshot`, `EvidenceBundle`, `FindingSet`,
+`SolutionPortfolio`, `DetectionReport`, `QualifiedOpportunity`,
+`ProposalEnvelope`, `ConvergenceDecision`, `ConvergedCase` and their leaf types
+— all have real Pydantic models (`contracts/{a1,a2,a3,b1,b2,c0}.py`), generated
+JSON Schemas (`schemas/`, via `contracts/schema_registry.py`), and are produced
+by real, tested production handlers.
+
+The downstream steps 01-08 artifacts (`SelectedSolution`, `ExecutionPlan`,
+`PatchArtifact`, `VerificationReport`, `Measurement`, `Decision`,
+`RollbackReport`, `OptimizationReport`, `RolloutReport`) sit outside the
+99-node A1-C0 scope this session's implementation covers. Each of those still
+needs a Pydantic model, generated JSON Schema, example fixture, redaction
+classification, owner, migration reader, digest test and adapter contract test
+before it is more than a target contract.

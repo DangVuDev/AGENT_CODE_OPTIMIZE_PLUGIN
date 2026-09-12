@@ -316,7 +316,7 @@ Only after `BOOT-0` through `FRAME-1` pass:
    pass; a happy-path demo is not an early release gate.
 
 Node-level details remain in
-[`lane-1-langgraph-architecture.md`](lane-1-langgraph-architecture.md).
+[`05-lane-1-detailed-implementation-playbook.md`](05-lane-1-detailed-implementation-playbook.md).
 
 ## 10. Stage 7 — Production Adapter Graduation
 

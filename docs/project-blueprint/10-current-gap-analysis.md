@@ -1,22 +1,38 @@
 # 10. Current Implementation Gap Analysis
 
-Assessment date: 2026-09-11. This assessment is based on the files present in
-this workspace, not on roadmap statements or an earlier repository state.
+Assessment date: 2026-09-12. This assessment is based on the files present in
+this workspace and on real end-to-end execution (`scripts/optimize.py` against
+`fixtures/sample-repo` and real GitHub clones), not on roadmap statements or an
+earlier repository state.
 
 ## Conclusion
 
-The repository currently contains a production blueprint, complete two-lane
-implementation design through C0, and a fail-closed orchestration frame. The frame includes packaging,
-locked dependencies, compact contracts, infrastructure ports, all three root
-entrypoints, the 99-task A1/A2/A3/B1/B2/C0 topology, development infrastructure
-configuration, migration skeleton and contract tests. It does not implement
-business handlers or any
-collector, analyzer, model, storage, policy, identity, worker, public API/CLI/MCP
-or production deployment adapter.
+The repository now contains a production blueprint, a fail-closed
+orchestration frame, and **real, tested production handlers for all 99
+business task IDs** across both lanes and the shared convergence gate (A1, A2,
+A3, B1, B2, C0 — see `../implementation/04-orchestration-frame-as-built.md`).
+Lane A is a working, end-to-end-runnable optimizer: `scripts/optimize.py
+<repo> --objective "..."` genuinely parses the objective, runs the target
+repository's own pytest/ruff/CI commands via `LocalWorkerBroker`, calls a real
+model provider, and converges through C0 to a sealed `ConvergedCase`. Lane B's
+handlers are equally real (B1 discovery through B2 proposal, both mounting the
+same real A2/A3 subgraphs Lane A uses) but have only been exercised through
+contract tests that seed state directly — Lane B has no scheduler/CLI trigger
+of its own yet.
 
-Roadmap and design documents describe target behavior. Only items listed in
-[`../implementation/01-project-scaffold.md`](../implementation/01-project-scaffold.md)
-have current as-built evidence.
+What remains not implemented is narrower and more specific than "business
+handlers": B1.32-35's real metrics/logs/traces/LLM-evidence query adapters (no
+port wired in — these nodes always report an honest `unavailable_reason`), a
+Lane B trigger surface, an OPA policy adapter (only the deterministic Python
+one is wired), live acceptance evidence for the implemented-but-unwired
+`KubernetesWorkerBroker`, differentiated C0 failure routing (today: a single
+`rejected` outcome with reasons recorded in the artifact, not per-cause graph
+edges), and any public API/MCP surface or production deployment automation.
+
+Roadmap and design documents describe target behavior; the as-built documents
+(`../implementation/01-project-scaffold.md`,
+`../implementation/04-orchestration-frame-as-built.md`) carry the current
+evidence.
 
 ## Documentation Coverage
 
@@ -35,29 +51,34 @@ have current as-built evidence.
 
 | Capability | As-built status | Required implementation evidence |
 |---|---|---|
-| Root LangGraph scaffold | Manual/discovery/qualified-case routing implemented; no durable checkpointer | FRAME-0 restart, interrupt, idempotency and composition tests |
-| Lane A LangGraph | A1/A2/A3/C0 topology, fan-outs and fail-closed routes compiled; zero handlers enabled | Handler contracts, durable resume and real-artifact end-to-end evidence |
-| Lane B/C0 LangGraph | Native B1/B2/C0 topology compiled; B1.95 reuses A2 and B2.22 reuses A3 | Candidate-level `Send`, scan/case outbox, durable replay and real-artifact tests |
-| A1 | Not implemented | Typed contracts, extraction, path/Git resolution, project/scope discovery, deterministic gates, RBAC/approval interrupt and immutable artifacts |
-| A2 | Not implemented | Content-addressed snapshot, manifest, safe worker adapters, raw evidence store, provenance, quality/comparability gates and interrupts |
-| A3 | Not implemented | Evidence catalogue, analyzers, generator/judge separation, citations, maturity/risk/portfolio policy, bounded revision and sealed artifacts |
-| Persistence | Strict pooled PostgreSQL checkpointer provider plus case/intent/outbox ports and initial SQL; no live integration evidence | Case store, idempotency ledger, migrations, HA and recovery tests |
-| Artifact storage | Port only; no adapter | Encrypted immutable object storage, digest/signature verification, tenancy, retention and reconciliation tests |
-| Policy and identity | Ports plus fail-closed bootstrap Rego only; no adapter | Authenticated identity/RBAC and versioned policy adapter with golden tests |
-| Worker isolation | Port only; no worker | Leases, queue/callback protocol, Kubernetes/gVisor or approved equivalent, timeout/cancel/reconcile and security tests |
-| Collector/analyzer/model adapters | Not implemented | Exact version ADRs, typed ports, conformance suites, provenance, budgets and failure behavior |
-| Public API/CLI/MCP | Not implemented | Create/read/stream/resume/cancel operations bound to one durable thread and authorization tests |
-| Operations | Not implemented | Telemetry, dashboards, alerts, runbooks, backup/restore, load/chaos/security drills |
+| Root LangGraph scaffold | Manual/discovery/qualified-case routing implemented; PostgreSQL checkpointer provider implemented, live restart evidence still environment-gated | FRAME-0 restart, interrupt, idempotency and composition tests against a reachable Postgres |
+| Lane A LangGraph | A1/A2/A3/C0 topology, fan-outs and routes compiled; all handlers real and registered | Broader real-repository corpus (beyond `fixtures/sample-repo`, `fixtures/urlshortener-sample` and ad hoc GitHub clones already exercised this session) |
+| Lane B/C0 LangGraph | Native B1/B2/C0 topology compiled and real; B1.95 reuses real A2, B2.22 reuses real A3 | Candidate-level `Send`, scan/case outbox, durable replay, a real trigger surface, and real-repository corpus tests (today: contract tests with seeded state) |
+| A1 | Implemented (`application/a1_handlers.py`) | Real end-to-end evidence exists (`tests/contract/test_a1_production_handlers.py`, `scripts/optimize.py` runs) |
+| A2 | Implemented (`application/a2_handlers.py`, `a2_worker_capabilities.py`) | Real command execution (git/pytest/ruff/`act`-CI/pytest-benchmark) via `LocalWorkerBroker`; 3-tier command detection with mandatory human approval for LLM-suggested commands |
+| A3 | Implemented (`application/a3_handlers.py`) | Real model-provider calls (5 providers), citation resolution, bounded revision loop, sealed `FindingSet`/`SolutionPortfolio`/`A3QualityReport` |
+| B1 | Implemented (`application/b1_handlers.py`, 25 native nodes) | Real scan/fingerprint/git-history/policy-authorization and detector/scoring/qualification logic; B1.32-35 honestly report `unavailable_reason` (no query adapter yet) |
+| B2 | Implemented (`application/b2_handlers.py`, 11 native nodes) | Real analysis-strategy/staleness/risk-routing logic and `ProposalEnvelope` sealing; no scheduler/CLI trigger yet |
+| C0 | Implemented (`application/c0_handlers.py`, 7 nodes, shared by both lanes) | Real schema/digest-chain/semantic-equivalence/freshness checks and a computed (not hardcoded) convergence gate; verified against a real Lane A run |
+| Persistence | Strict pooled PostgreSQL checkpointer provider plus case/intent/outbox adapters, migrations and restart-recovery integration tests | HA and disaster-recovery drills against managed infrastructure |
+| Artifact storage | `S3ArtifactStore` implemented: content-addressed, create-only writes, digest verification, tenant isolation | Encryption-at-rest/KMS, retention policy and reconciliation tests against a real S3/MinIO fleet |
+| Policy and identity | `DeterministicPythonPolicy` (fail-closed registry) and `JwtIdentityPort` implemented with golden-decision tests | An OPA HTTP adapter implementing the same `PolicyPort`; the deterministic Python policy remains the primary production mechanism by project decision |
+| Worker isolation | `LocalWorkerBroker` (in-process, timeout-enforced) implemented and used by both lanes; `KubernetesWorkerBroker` implemented and unit-tested but unwired and never run against a live cluster | Live Kubernetes/gVisor sandbox acceptance evidence; `LocalWorkerBroker` does not yet cancel/kill a timed-out subprocess |
+| Collector/analyzer/model adapters | Command-execution collection (git/pytest/ruff/`act`/pytest-benchmark) and 5 model-provider adapters (Anthropic/OpenAI/Gemini/DeepSeek/Ollama) implemented | A real performance/benchmark metric collector for arbitrary criteria beyond command-exit-code signals; B1's historical metrics/logs/traces/LLM-evidence query adapters |
+| Public API/CLI/MCP | `scripts/optimize.py` is a real Lane A CLI | No API/MCP surface; no Lane B CLI/scheduler; no create/read/stream/resume/cancel service bound to a durable thread |
+| Operations | OpenTelemetry span emission implemented; no raw payloads in telemetry | Dashboards, alerts, runbooks, backup/restore, load/chaos/security drills |
 
-## Highest-Risk Architecture Gap
+## Highest-Risk Architecture Gap (Resolved)
 
-The first implementation must not encode Lane 1 as:
+The original risk was encoding Lane 1 as a flat sequence:
 
 ```text
 a1 -> a2 -> execute_a1_a2_a3 -> END
 ```
 
-or as three nodes that call synchronous stage services. The required shape is:
+or as three nodes that call synchronous stage services. The implementation
+instead uses, and `tests/contract/test_root_graph.py` verifies, the nested
+shape this section originally required:
 
 ```text
 OptimizationRootGraph
@@ -66,13 +87,14 @@ OptimizationRootGraph
        -> A2BaselineSubgraph: every A2.10-A2.95 task node and collector fan-out
        -> A3SolutionSubgraph: every A3.10-A3.90 task node, analyzer fan-out,
           deterministic gates and bounded targeted revision
-  -> C0 (later milestone)
+  -> C0: shared convergence, mounted after both lanes
 ```
 
 The exhaustive contract is
-[`../implementation/lane-1-langgraph-architecture.md`](../implementation/lane-1-langgraph-architecture.md).
-CI must compare the compiled graph inventory to that contract so future
-refactoring cannot silently collapse checkpoints or bypass gates.
+[`../implementation/05-lane-1-detailed-implementation-playbook.md`](../implementation/05-lane-1-detailed-implementation-playbook.md).
+`tests/contract/test_root_graph.py` compares the compiled graph inventory to
+the catalog so future refactoring cannot silently collapse checkpoints or
+bypass gates.
 
 ## Implementation Order
 
@@ -85,22 +107,35 @@ refactoring cannot silently collapse checkpoints or bypass gates.
    runtime and restart/interrupt/idempotency smoke tests without Lane 1 business
    handlers.
 4. Register the compiled two-lane topology and topology tests for all 99
-   business task IDs. This structural step is implemented; handlers remain
-   disabled.
+   business task IDs. **Done** — structural step and topology tests both in
+   place.
 5. Implement canonical envelope, interrupt, error, event, artifact reference,
    digest and schema contracts, then A1 handlers and approval/clarification
-   resume paths.
+   resume paths. **Done.**
 6. Implement A2 snapshot, worker fan-out, raw preservation, provenance,
-   quality and comparability handlers.
+   quality and comparability handlers. **Done**, including real command
+   execution and 3-tier command detection with mandatory human approval.
 7. Implement A3 analyzer/generator fan-out, citation/judge/maturity gates,
-   strategy validation and targeted revision handlers.
+   strategy validation and targeted revision handlers. **Done**, including
+   real model-provider calls across 5 providers.
+7a. Implement B1 discovery, B2 proposal and the shared C0 convergence gate.
+    **Done** — not originally numbered in this order, but completed alongside
+    7 above; B1.32-35's query adapters and a Lane B trigger surface remain
+    open (see Implementation Coverage).
 8. Add development adapters only under an explicit development profile; never
    use their presence as a production-readiness claim.
 9. Add PostgreSQL, object storage, policy/identity, isolated worker and live
-   provider adapters with conformance tests.
-10. Add API/CLI/MCP surfaces and operational telemetry.
+   provider adapters with conformance tests. **Mostly done** — Postgres, S3,
+   JWT identity, deterministic Python policy and `LocalWorkerBroker` all have
+   production adapters and tests; `KubernetesWorkerBroker` and an OPA policy
+   adapter remain.
+10. Add API/CLI/MCP surfaces and operational telemetry. **Partially done** —
+    `scripts/optimize.py` is a real Lane A CLI and OpenTelemetry spans are
+    emitted; no API/MCP surface and no Lane B CLI/scheduler exist yet.
 11. Run schema, topology, contract, integration, resume, chaos, security and
-    real-case reconstruction release gates.
+    real-case reconstruction release gates. **Partially done** — schema,
+    topology, contract and resume evidence exist; chaos/security drills and a
+    broader real-case corpus remain.
 
 The normative pre-node order and clone/install/pull rules are in
 [`../implementation/00-bootstrap-and-build-order.md`](../implementation/00-bootstrap-and-build-order.md).
@@ -109,9 +144,17 @@ The normative pre-node order and clone/install/pull rules are in
 
 At the current workspace state, the repository may accurately be described as:
 
-> Production blueprint with a tested, fail-closed two-lane LangGraph
-> orchestration frame and no enabled business handlers.
+> A working Lane A optimizer — real production handlers for A1, A2, A3 and the
+> shared C0 convergence gate, runnable end to end against a real repository via
+> `scripts/optimize.py` — plus a Lane B (B1 discovery, B2 proposal) that is
+> equally real in its handler logic but has no scheduler/CLI trigger of its own
+> and has only been exercised through contract tests with seeded state.
 
-It must not be called an implemented Lane A or working optimization workflow
-until A1-A3 code and test evidence exist. It must not be called production-ready
-until the M0/M1 infrastructure and operational gates also pass.
+It must not be called fully autonomous or production-ready: B1.32-35's real
+query adapters, a Lane B trigger surface, an OPA policy adapter,
+`KubernetesWorkerBroker` acceptance evidence, differentiated C0 failure
+routing, and API/MCP/operational surfaces are all still open. It must not be
+called validated against a broad real-world corpus beyond the specific repos
+(`fixtures/sample-repo`, `fixtures/urlshortener-sample`, and ad hoc GitHub
+clones) exercised so far. It must not be called production-ready until the
+M0/M1 infrastructure and operational gates also pass.

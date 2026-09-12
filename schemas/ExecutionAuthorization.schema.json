@@ -1,0 +1,142 @@
+{
+  "$defs": {
+    "ProducerIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ProducerIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A2.50 output.\n\nNot produced by any registered handler yet: authorizing argv, write\nroots, egress, secret leases and worker jobs requires `PolicyPort`,\n`SecretsBroker` and `WorkerBroker` wired into `NodePorts`, none of which\nexist there today. The contract is defined ahead of the port work so the\nfan-out nodes (A2.60-A2.64) that depend on it have a stable target shape.",
+  "properties": {
+    "allowed_egress": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Egress",
+      "type": "array"
+    },
+    "allowed_write_roots": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Write Roots",
+      "type": "array"
+    },
+    "artifact_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_type": {
+      "const": "ExecutionAuthorization",
+      "default": "ExecutionAuthorization",
+      "title": "Artifact Type",
+      "type": "string"
+    },
+    "authorized": {
+      "title": "Authorized",
+      "type": "boolean"
+    },
+    "case_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "content_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Content Digest",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "denied_capabilities": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Denied Capabilities",
+      "type": "array"
+    },
+    "extensions": {
+      "additionalProperties": true,
+      "title": "Extensions",
+      "type": "object"
+    },
+    "parent_digests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Parent Digests",
+      "type": "array"
+    },
+    "policy_version": {
+      "minLength": 1,
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "policy_versions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Policy Versions",
+      "type": "object"
+    },
+    "producer": {
+      "$ref": "#/$defs/ProducerIdentity"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tenant_id": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "worker_job_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Worker Job Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "case_id",
+    "created_at",
+    "producer",
+    "content_digest",
+    "authorized",
+    "policy_version"
+  ],
+  "title": "ExecutionAuthorization",
+  "type": "object"
+}

@@ -39,7 +39,7 @@ internal worker subgraph. A1-A3 must not be collapsed into an
 removes checkpoint, logging, retry, approval, fan-out, and targeted-revision
 boundaries. The exhaustive Lane A topology and node/framework ownership matrix
 are defined in
-[`../implementation/lane-1-langgraph-architecture.md`](../implementation/lane-1-langgraph-architecture.md).
+[`../implementation/05-lane-1-detailed-implementation-playbook.md`](../implementation/05-lane-1-detailed-implementation-playbook.md).
 The required repository, toolchain, infrastructure and root-frame setup that
 must precede those nodes is defined in
 [`../implementation/00-bootstrap-and-build-order.md`](../implementation/00-bootstrap-and-build-order.md).

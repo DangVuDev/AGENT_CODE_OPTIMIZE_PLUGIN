@@ -1,0 +1,20 @@
+[project]
+name = "inventory-sample"
+version = "0.1.0"
+description = "Fixture target codebase for exercising Lane 1 (A1/A2/A3) end-to-end."
+requires-python = ">=3.11"
+dependencies = ["pytest-benchmark>=4.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+# No [tool.mypy] section: mypy isn't installed in this repo's own venv (it
+# uses pyright for its own type checking), and A2.31 only offers a "type"
+# verification command when it detects real config for a real, runnable
+# tool -- adding a stub section here would make A2.50 authorize a command
+# that fails with "No module named mypy", which is not a signal worth
+# demonstrating.

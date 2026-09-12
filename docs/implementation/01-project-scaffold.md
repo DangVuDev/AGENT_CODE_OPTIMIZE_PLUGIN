@@ -1,6 +1,6 @@
 # 01. Project Scaffold — As Built
 
-Assessment date: 2026-09-11  
+Assessment date: 2026-09-12  
 Scope: platform scaffold plus fail-closed orchestration frame
 
 ## Implemented Boundary
@@ -29,10 +29,12 @@ handler implementation:
   outbox; and
 - topology and routing tests for both lanes and C0.
 
-No collector, analyzer, LLM, artifact-store, case/intent/outbox, policy, worker
-or identity adapter is implemented. Business node wrappers exist, but zero
-business handlers are enabled; the default runtime fails closed instead of
-emitting placeholder success.
+All 99 business node wrappers now also have real, registered production
+handlers (see `04-orchestration-frame-as-built.md` for the current business
+handler and adapter inventory); a node without an explicit registration still
+raises `NodeNotEnabledError` rather than emitting placeholder success — the
+fail-closed default this scaffold established still holds, it is just no
+longer the state of every node.
 
 ## Structure
 
@@ -65,11 +67,18 @@ emitting placeholder success.
 3. The PostgreSQL provider and strict serialization are implemented, but live
    database migration, schema separation, HA and restart/resume tests are not
    yet wired.
-4. Infrastructure ports have no concrete adapters or conformance suites.
-5. Interrupt payloads are modeled, but authenticated `interrupt()`/resume and
-   durable checkpoint behavior still require FRAME-0 integration.
-6. B1 candidate `Send` fan-out and every business handler remain disabled until
-   their contracts and adapters meet Definition of Ready.
+4. Infrastructure ports now have concrete production adapters and unit/contract
+   test coverage (see `04-orchestration-frame-as-built.md`); live acceptance
+   evidence against real managed infrastructure (HA Postgres, a real S3/MinIO
+   fleet, a real Kubernetes cluster) is still a separate deployment gate.
+5. Interrupt payloads are modeled, and a real, reusable human-in-the-loop
+   resume/approval path (`application/resume.py`) is implemented and used by
+   A1.90, A2.31's LLM-suggested-command approval, and B2's owner-review
+   routing; durable checkpoint behavior beyond the tested restart scenarios
+   still requires further FRAME-0 integration.
+6. B1's multi-candidate `Send` fan-out is still not implemented (B1 currently
+   processes detected signals without that parallel fan-out primitive); every
+   other business handler is implemented and registered.
 
 The lockfile environment, tests and static checks complete the technical part of
 `BOOT-1`; repository governance remains blocked on the organization remote. The
@@ -89,4 +98,4 @@ blocked on those gates.
 | Pyright strict | 0 errors, 0 warnings |
 | Docker Compose configuration | Validated successfully |
 | Catalog business task IDs in expanded graph | 99 |
-| Enabled business handlers | 0, intentionally fail-closed |
+| Enabled business handlers | 99/99, real production handlers registered |

@@ -431,6 +431,7 @@ def _repository_manifest(state: OptimizationState) -> RepositoryManifest:
                 argv=["python", "-m", "pytest"],
                 working_directory=".",
                 kind="benchmark",
+                source="pyproject_toml",
             )
         ],
         tool_coverage={"syntax": 1.0, "runtime": 1.0},

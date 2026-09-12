@@ -1,0 +1,21 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "revision_id": {
+      "minLength": 1,
+      "title": "Revision Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision_id",
+    "observed_at"
+  ],
+  "title": "HistoricalRevision",
+  "type": "object"
+}

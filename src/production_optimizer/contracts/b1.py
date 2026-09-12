@@ -23,6 +23,122 @@ TrustLevelLiteral = Literal["T0", "T1", "T2", "T3", "T4"]
 # classes.
 
 
+class DiscoveryScanContext(ArtifactEnvelope):
+    """B1.10's own sealed output: the scan window/trigger for this run.
+
+    Minimal by design -- everything B1.20-40 discovers gets folded into
+    `DetectionReport` (already the wide, incrementally-built envelope this
+    lane converges on); this only needs to exist so B1.10 has something real
+    to seal and every later node has a stable `scan_id` to reference.
+    """
+
+    artifact_type: Literal["DiscoveryScanContext"] = "DiscoveryScanContext"
+    schema_version: Literal["1.0"] = "1.0"
+    scan_id: str = Field(min_length=1)
+    window_start: datetime
+    window_end: datetime
+    trigger: Literal["scheduled", "manual", "event"]
+
+    @model_validator(mode="after")
+    def validate_window(self) -> DiscoveryScanContext:
+        if self.window_end <= self.window_start:
+            raise ValueError("window_end must be after window_start")
+        return self
+
+
+class RegisteredSource(ContractModel):
+    source_id: str = Field(min_length=1)
+    feature_id: str = Field(min_length=1)
+    repository_id: str = Field(min_length=1)
+    local_path: str = Field(min_length=1)
+
+
+class RegisteredSourceSet(ArtifactEnvelope):
+    """B1.20's output: which feature/repository pairs this scan may consider.
+
+    A real, tenant-scoped allowlist -- B1 must never open an opportunity for
+    a repository/feature nobody registered for automatic discovery.
+    """
+
+    artifact_type: Literal["RegisteredSourceSet"] = "RegisteredSourceSet"
+    schema_version: Literal["1.0"] = "1.0"
+    sources: list[RegisteredSource] = Field(default_factory=list["RegisteredSource"])
+
+
+class ObservedSourceIdentity(ArtifactEnvelope):
+    """B1.21's output: a real fingerprint of the source as it exists right now."""
+
+    artifact_type: Literal["ObservedSourceIdentity"] = "ObservedSourceIdentity"
+    schema_version: Literal["1.0"] = "1.0"
+    source_id: str = Field(min_length=1)
+    repository_id: str = Field(min_length=1)
+    git_revision: str | None = None
+    content_fingerprint: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class HistoricalRevision(ContractModel):
+    revision_id: str = Field(min_length=1)
+    observed_at: datetime
+
+
+class HistoricalSourceInventory(ArtifactEnvelope):
+    """B1.30's output: real prior revisions available to compare against."""
+
+    artifact_type: Literal["HistoricalSourceInventory"] = "HistoricalSourceInventory"
+    schema_version: Literal["1.0"] = "1.0"
+    source_id: str = Field(min_length=1)
+    revisions: list[HistoricalRevision] = Field(default_factory=list["HistoricalRevision"])
+
+
+class ReadAuthorization(ArtifactEnvelope):
+    """B1.31's output: whether this scan may query historical telemetry at all.
+
+    Fail-closed by construction -- `allowed=False` requires `reasons`, same
+    pattern as `QualificationDecision`/`CooldownDecision` below.
+    """
+
+    artifact_type: Literal["ReadAuthorization"] = "ReadAuthorization"
+    schema_version: Literal["1.0"] = "1.0"
+    scan_id: str = Field(min_length=1)
+    allowed: bool
+    reasons: list[str] = Field(default_factory=list)
+    authorized_query_kinds: list[Literal["metrics", "logs", "traces", "llm_evidence"]] = Field(
+        default_factory=list["Literal['metrics', 'logs', 'traces', 'llm_evidence']"]
+    )
+
+    @model_validator(mode="after")
+    def validate_denied_reasons(self) -> ReadAuthorization:
+        if not self.allowed and not self.reasons:
+            raise ValueError("a denied read authorization must include reasons")
+        return self
+
+
+class HistoricalEvidenceItem(ContractModel):
+    """One real historical observation -- shaped like `a2.EvidenceItem` but
+    defined here rather than imported, since only `a3.py` may import from
+    `a2.py` per the platform wiring plan (see the module-level NOTE above)."""
+
+    evidence_id: str = Field(min_length=1)
+    feature_id: str = Field(min_length=1)
+    workload_id: str = Field(min_length=1)
+    environment_id: str = Field(min_length=1)
+    value: float | None = None
+    unit: str | None = None
+    observed_at: datetime
+
+
+class HistoricalEvidenceBranch(ArtifactEnvelope):
+    """B1.32-35's own output -- deliberately not `a2.BranchEvidenceRefs`
+    (its `branch_id` is pattern-locked to A2's own node ids)."""
+
+    artifact_type: Literal["HistoricalEvidenceBranch"] = "HistoricalEvidenceBranch"
+    schema_version: Literal["1.0"] = "1.0"
+    branch_id: Literal["B1.32", "B1.33", "B1.34", "B1.35"]
+    branch_kind: Literal["metrics", "logs", "traces", "llm_evidence"]
+    evidence: list[HistoricalEvidenceItem] = Field(default_factory=list["HistoricalEvidenceItem"])
+    unavailable_reason: str | None = None
+
+
 class RunGroup(ContractModel):
     group_id: str = Field(min_length=1)
     feature_id: str = Field(min_length=1)

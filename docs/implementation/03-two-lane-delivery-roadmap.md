@@ -1,6 +1,11 @@
 # 03. Two-Lane Product Delivery Roadmap
 
-Status: implementation sequence; orchestration frame, deterministic pilot flow and A1 production-intake slice implemented; remaining production business handlers pending  
+Status: implementation sequence; orchestration frame, deterministic pilot flow
+and real production handlers for all 99 business nodes (A1, A2, A3, B1, B2, C0)
+implemented. Remaining: B1.32-35 query adapters, a Lane B scheduler/CLI
+trigger, an OPA policy adapter, live `KubernetesWorkerBroker` acceptance
+evidence, differentiated C0 failure routing, and API/MCP surfaces — see
+`docs/project-blueprint/10-current-gap-analysis.md`.  
 Architecture: [`02-two-lane-product-architecture.md`](02-two-lane-product-architecture.md)  
 Business authority: `docs/project-blueprint/lane-a-local-codebase`,
 `lane-b-local-codebase`, and `shared-workflow/00-convergence.md`

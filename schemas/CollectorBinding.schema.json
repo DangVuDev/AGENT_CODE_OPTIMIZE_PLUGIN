@@ -1,0 +1,45 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "aggregation": {
+      "minLength": 1,
+      "title": "Aggregation",
+      "type": "string"
+    },
+    "collector_id": {
+      "minLength": 1,
+      "title": "Collector Id",
+      "type": "string"
+    },
+    "minimum_samples": {
+      "minimum": 1,
+      "title": "Minimum Samples",
+      "type": "integer"
+    },
+    "requirement_id": {
+      "minLength": 1,
+      "title": "Requirement Id",
+      "type": "string"
+    },
+    "source_type": {
+      "minLength": 1,
+      "title": "Source Type",
+      "type": "string"
+    },
+    "window_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Window Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "requirement_id",
+    "collector_id",
+    "source_type",
+    "window_seconds",
+    "aggregation",
+    "minimum_samples"
+  ],
+  "title": "CollectorBinding",
+  "type": "object"
+}

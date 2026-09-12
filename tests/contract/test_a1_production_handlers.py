@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from production_optimizer.application import NodePorts, build_a1_runtime
+from production_optimizer.application.resume import resume_case
 from production_optimizer.contracts.a1 import ManualCasePayload
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import canonical_json, sha256_digest
-from production_optimizer.contracts.platform import IntentRecord, IntentStatus
+from production_optimizer.contracts.commands import ResumeInterruptCommand
+from production_optimizer.contracts.platform import ActorContext, IntentRecord, IntentStatus
 from production_optimizer.orchestration.subgraphs import build_a1_graph
 
 
@@ -222,3 +225,62 @@ def test_a1_production_handlers_interrupt_for_non_approver_role(tmp_path: Path) 
     assert "A1.95" not in set(result["completed_nodes"])
     assert result["node_routes"]["A1.90"] == "approval"
     assert result["pending_interrupt"].stage == "A1.90"
+
+
+def test_a1_90_resumes_after_approval_via_resume_case(tmp_path: Path) -> None:
+    store = _MemoryArtifactStore()
+    payload = ManualCasePayload(
+        structured_request={
+            "objective": {
+                "statement": "Reduce checkout p95 latency",
+                "feature_id": "checkout",
+            },
+            "criteria": [
+                {
+                    "metric_id": "p95_latency_ms",
+                    "direction": "minimize",
+                    "target": 180.0,
+                    "unit": "ms",
+                }
+            ],
+            "workload": {
+                "workload_id": "checkout-load",
+                "environment_id": "local-dev",
+            },
+        },
+        local_path=str(tmp_path),
+        allowed_root=str(tmp_path),
+        actor_id="requester-1",
+        actor_role="requester",
+    )
+    ports = _ports(store)
+    graph = build_a1_graph(build_a1_runtime(ports=ports))
+
+    halted = graph.invoke(_state(_payload_ref(store, payload)))
+    assert halted["node_routes"]["A1.90"] == "approval"
+    interrupt = halted["pending_interrupt"]
+    assert interrupt.stage == "A1.90"
+
+    now = datetime.now(UTC)
+    command = ResumeInterruptCommand(
+        command_id="resume-1",
+        tenant_id="TENANT-A",
+        case_id=interrupt.case_id,
+        thread_id=interrupt.thread_id,
+        interrupt_id=interrupt.interrupt_id,
+        actor_id="owner-1",
+        actor_roles={"owner"},
+        decision="approve",
+        artifact_digest=interrupt.artifact_digest,
+        policy_version=interrupt.policy_version,
+        issued_at=now,
+    )
+    actor = ActorContext(
+        actor_id="owner-1", tenant_id="TENANT-A", roles={"owner"}, authenticated_at=now
+    )
+
+    resumed = resume_case(graph=graph, state=halted, command=command, actor=actor, now=now)
+
+    assert resumed["node_routes"]["A1.90"] == "continue"
+    assert "A1.95" in set(resumed["completed_nodes"])
+    assert resumed["request_ref"].artifact_type == "OptimizationRequest"

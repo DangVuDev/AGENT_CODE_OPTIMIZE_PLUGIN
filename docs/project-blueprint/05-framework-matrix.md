@@ -11,7 +11,7 @@ references, apply the retry contract, or select a conditional edge.
 
 For the exhaustive A1.10–A3.90 mapping from node to capability provider,
 decision authority, and side-effect/retry class, see
-[`../implementation/lane-1-langgraph-architecture.md`](../implementation/lane-1-langgraph-architecture.md#5-node-to-framework-ownership-matrix).
+[`../implementation/05-lane-1-detailed-implementation-playbook.md`](../implementation/05-lane-1-detailed-implementation-playbook.md).
 For Lane B reuse, historical discovery, C0 and the full delivery order, see
 [`../implementation/02-two-lane-product-architecture.md`](../implementation/02-two-lane-product-architecture.md)
 and
