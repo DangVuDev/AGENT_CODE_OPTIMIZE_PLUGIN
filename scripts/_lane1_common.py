@@ -14,6 +14,8 @@ import os
 import re
 import socket
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -23,6 +25,8 @@ from pydantic import TypeAdapter
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import sha256_digest
 from production_optimizer.contracts.platform import (
+    DeferredModelCallRecord,
+    DeferredModelCallStatus,
     IntentRecord,
     IntentStatus,
     ModelCompletionRequest,
@@ -137,6 +141,105 @@ class MemoryIntentLedger:
         return updated
 
 
+class MemoryModelCallDeferralStore:
+    def __init__(self) -> None:
+        self._records: dict[tuple[str, str], DeferredModelCallRecord] = {}
+
+    def defer(self, record: DeferredModelCallRecord) -> DeferredModelCallRecord:
+        existing = self._records.get((record.tenant_id, record.deferral_id))
+        if existing is not None and existing.status is DeferredModelCallStatus.SUCCEEDED:
+            return existing
+        self._records[(record.tenant_id, record.deferral_id)] = record
+        return record
+
+    def get(self, *, tenant_id: str, deferral_id: str) -> DeferredModelCallRecord | None:
+        return self._records.get((tenant_id, deferral_id))
+
+    def claim_due(
+        self, *, tenant_id: str, lease_owner: str, lease_seconds: int, limit: int
+    ) -> list[DeferredModelCallRecord]:
+        if limit <= 0:
+            raise ValueError("limit must be positive")
+        if lease_seconds <= 0:
+            raise ValueError("lease_seconds must be positive")
+        now = datetime.now(UTC)
+        claimed: list[DeferredModelCallRecord] = []
+        for key, record in sorted(
+            self._records.items(), key=lambda item: item[1].available_at
+        ):
+            if len(claimed) >= limit:
+                break
+            if record.tenant_id != tenant_id:
+                continue
+            due_scheduled = (
+                record.status is DeferredModelCallStatus.SCHEDULED
+                and record.available_at <= now
+            )
+            expired_running = (
+                record.status is DeferredModelCallStatus.RUNNING
+                and record.lease_expires_at is not None
+                and record.lease_expires_at <= now
+            )
+            if not due_scheduled and not expired_running:
+                continue
+            updated = record.model_copy(
+                update={
+                    "status": DeferredModelCallStatus.RUNNING,
+                    "lease_owner": lease_owner,
+                    "lease_expires_at": now + timedelta(seconds=lease_seconds),
+                    "attempts": record.attempts + 1,
+                    "updated_at": now,
+                }
+            )
+            self._records[key] = updated
+            claimed.append(updated)
+        return claimed
+
+    def mark_succeeded(self, *, tenant_id: str, deferral_id: str) -> DeferredModelCallRecord:
+        return self._update_status(
+            tenant_id=tenant_id,
+            deferral_id=deferral_id,
+            status=DeferredModelCallStatus.SUCCEEDED,
+        )
+
+    def mark_failed(
+        self, *, tenant_id: str, deferral_id: str, error_ref: str
+    ) -> DeferredModelCallRecord:
+        return self._update_status(
+            tenant_id=tenant_id,
+            deferral_id=deferral_id,
+            status=DeferredModelCallStatus.FAILED,
+            last_error_ref=error_ref,
+        )
+
+    def healthcheck(self) -> bool:
+        return True
+
+    def _update_status(
+        self,
+        *,
+        tenant_id: str,
+        deferral_id: str,
+        status: DeferredModelCallStatus,
+        last_error_ref: str | None = None,
+    ) -> DeferredModelCallRecord:
+        key = (tenant_id, deferral_id)
+        record = self._records.get(key)
+        if record is None:
+            raise ValueError(f"no model call deferral found for {tenant_id=} {deferral_id=}")
+        updated = record.model_copy(
+            update={
+                "status": status,
+                "lease_owner": None,
+                "lease_expires_at": None,
+                "last_error_ref": last_error_ref,
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        self._records[key] = updated
+        return updated
+
+
 class AllowPolicy:
     """Fixed allow-everything `PolicyPort` for a one-off local script run.
 
@@ -152,6 +255,276 @@ class AllowPolicy:
 
     def healthcheck(self) -> bool:
         return True
+
+
+@dataclass(frozen=True, slots=True)
+class ControlPlane:
+    """The durable-infrastructure ports a case runs against.
+
+    `durable` is False when any part fell back to an in-process stand-in, so
+    a caller can say so out loud instead of a run silently looking
+    production-grade while its evidence lives in RAM.
+    """
+
+    artifacts: Any
+    checkpointer: Any
+    intents: Any
+    model_deferrals: Any
+    policy: Any
+    telemetry: Any
+    policy_version: str
+    durable: bool
+    notes: tuple[str, ...]
+
+
+_DURABLE_CONNECT_TIMEOUT_SECONDS = 5.0
+_REACHABILITY_PROBE_SECONDS = 0.5
+
+
+def _endpoint_reachable(url: str, *, default_port: int) -> bool:
+    """Cheap TCP probe before building a durable adapter in `auto` mode.
+
+    Constructing `PostgresIntentLedger` against a dead host costs a five
+    second pool timeout and leaves the pool's worker thread behind, and
+    `S3ArtifactStore` has no healthcheck at all (boto3 connects lazily, so
+    construction succeeds and the *first artifact write* is what fails).
+    Probing the socket first keeps the fallback fast and honest. Only used
+    for `auto`; `durable` builds for real so its errors surface verbatim.
+    """
+
+    parsed = urlsplit(url if "//" in url else f"//{url}")
+    host = parsed.hostname
+    if not host:
+        return False
+    try:
+        with socket.create_connection(
+            (host, parsed.port or default_port), timeout=_REACHABILITY_PROBE_SECONDS
+        ):
+            return True
+    except OSError:
+        return False
+
+
+def build_control_plane(*, service_name: str = "production-optimizer") -> ControlPlane:
+    """Choose real adapters wherever the environment configures them.
+
+    Every runnable entrypoint used to hardcode `MemoryArtifactStore` +
+    `MemoryIntentLedger` + `AllowPolicy`, so the Postgres/S3/OTel adapters --
+    implemented and tested -- were unreachable from anything you could
+    actually run, and no run could survive its own process (REQ-AUDIT-001,
+    REQ-OPS-001).
+
+    `OPTIMIZER_CONTROL_PLANE` selects the posture, because merely *finding*
+    a DSN in the environment is not consent: `.env.example` ships one, so
+    presence alone would turn every developer's first run into a 30-second
+    connection timeout against a database they never started.
+
+    * `auto` (default): use each durable adapter the environment configures
+      and that actually answers; otherwise fall back, loudly, per port.
+    * `durable`: require them. A misconfigured or unreachable dependency
+      raises instead of silently degrading -- what a production deployment
+      wants.
+    * `memory`: in-process everything, no connection attempts.
+
+    The policy port is the exception: it upgrades in every mode. Fail-open
+    authorization is not a reasonable local convenience, and
+    `build_bootstrap_policy` needs no infrastructure.
+    """
+
+    mode = os.environ.get("OPTIMIZER_CONTROL_PLANE", "auto").strip().lower() or "auto"
+    if mode not in {"auto", "durable", "memory"}:
+        raise ValueError(
+            f"OPTIMIZER_CONTROL_PLANE must be one of auto/durable/memory, got {mode!r}"
+        )
+
+    notes: list[str] = []
+    policy_version = os.environ.get("OPTIMIZER_POLICY_VERSION", "bootstrap-v1")
+
+    intents, intents_durable = _build_intents(mode, notes)
+    model_deferrals, model_deferrals_durable = _build_model_deferrals(mode, notes)
+    checkpointer, checkpointer_durable = _build_checkpointer(mode, notes)
+    artifacts, artifacts_durable = _build_artifacts(mode, notes)
+    telemetry = _build_telemetry(mode, notes, service_name=service_name)
+
+    from production_optimizer.adapters.production import build_bootstrap_policy
+
+    policy = build_bootstrap_policy(policy_version=policy_version)
+    notes.append(f"policy: DeterministicPythonPolicy(fail-closed, {policy_version})")
+
+    return ControlPlane(
+        artifacts=artifacts,
+        checkpointer=checkpointer,
+        intents=intents,
+        model_deferrals=model_deferrals,
+        policy=policy,
+        telemetry=telemetry,
+        policy_version=policy_version,
+        durable=(
+            intents_durable
+            and artifacts_durable
+            and model_deferrals_durable
+            and checkpointer_durable
+        ),
+        notes=tuple(notes),
+    )
+
+
+def _build_intents(mode: str, notes: list[str]) -> tuple[Any, bool]:
+    dsn = os.environ.get("OPTIMIZER_DATABASE_DSN", "").strip()
+    if mode == "memory" or not dsn:
+        if mode == "durable":
+            raise RuntimeError(
+                "OPTIMIZER_CONTROL_PLANE=durable requires OPTIMIZER_DATABASE_DSN to be set"
+            )
+        notes.append("intents: in-memory (set OPTIMIZER_DATABASE_DSN for a durable ledger)")
+        return MemoryIntentLedger(), False
+
+    if mode == "auto" and not _endpoint_reachable(dsn, default_port=5432):
+        notes.append("intents: in-memory (Postgres not answering at OPTIMIZER_DATABASE_DSN)")
+        return MemoryIntentLedger(), False
+
+    from production_optimizer.adapters.production import PostgresIntentLedger
+
+    try:
+        ledger = PostgresIntentLedger(
+            dsn, connect_timeout_seconds=_DURABLE_CONNECT_TIMEOUT_SECONDS
+        )
+    except Exception as error:
+        if mode == "durable":
+            raise RuntimeError(f"OPTIMIZER_DATABASE_DSN is unreachable: {error}") from error
+        notes.append(f"intents: in-memory (Postgres unreachable: {type(error).__name__})")
+        return MemoryIntentLedger(), False
+
+    notes.append("intents: PostgresIntentLedger")
+    return ledger, True
+
+
+def _build_model_deferrals(mode: str, notes: list[str]) -> tuple[Any, bool]:
+    dsn = os.environ.get("OPTIMIZER_DATABASE_DSN", "").strip()
+    if mode == "memory" or not dsn:
+        if mode == "durable":
+            raise RuntimeError(
+                "OPTIMIZER_CONTROL_PLANE=durable requires OPTIMIZER_DATABASE_DSN to be set"
+            )
+        notes.append("model deferrals: in-memory (set OPTIMIZER_DATABASE_DSN for durable retry)")
+        return MemoryModelCallDeferralStore(), False
+
+    if mode == "auto" and not _endpoint_reachable(dsn, default_port=5432):
+        notes.append("model deferrals: in-memory (Postgres not answering)")
+        return MemoryModelCallDeferralStore(), False
+
+    from production_optimizer.adapters.production import PostgresModelCallDeferralStore
+
+    try:
+        store = PostgresModelCallDeferralStore(
+            dsn, connect_timeout_seconds=_DURABLE_CONNECT_TIMEOUT_SECONDS
+        )
+    except Exception as error:
+        if mode == "durable":
+            raise RuntimeError(f"model deferral store is unreachable: {error}") from error
+        notes.append(
+            f"model deferrals: in-memory (Postgres unreachable: {type(error).__name__})"
+        )
+        return MemoryModelCallDeferralStore(), False
+
+    notes.append("model deferrals: PostgresModelCallDeferralStore")
+    return store, True
+
+
+def _build_checkpointer(mode: str, notes: list[str]) -> tuple[Any | None, bool]:
+    dsn = os.environ.get("OPTIMIZER_DATABASE_DSN", "").strip()
+    if mode == "memory" or not dsn:
+        if mode == "durable":
+            raise RuntimeError(
+                "OPTIMIZER_CONTROL_PLANE=durable requires OPTIMIZER_DATABASE_DSN to be set"
+            )
+        notes.append("checkpoints: disabled (set OPTIMIZER_DATABASE_DSN for durable resume)")
+        return None, False
+
+    if mode == "auto" and not _endpoint_reachable(dsn, default_port=5432):
+        notes.append("checkpoints: disabled (Postgres not answering)")
+        return None, False
+
+    from production_optimizer.adapters.production import PostgresCheckpointProvider
+
+    provider = PostgresCheckpointProvider(
+        dsn, connect_timeout_seconds=_DURABLE_CONNECT_TIMEOUT_SECONDS
+    )
+    try:
+        provider.setup()
+    except Exception as error:
+        provider.close()
+        if mode == "durable":
+            raise RuntimeError(f"checkpoint provider is unreachable: {error}") from error
+        notes.append(f"checkpoints: disabled (Postgres unreachable: {type(error).__name__})")
+        return None, False
+
+    notes.append("checkpoints: PostgresCheckpointProvider")
+    return provider.checkpointer(), True
+
+
+def _build_artifacts(mode: str, notes: list[str]) -> tuple[Any, bool]:
+    endpoint = os.environ.get("OPTIMIZER_ARTIFACT_ENDPOINT", "").strip()
+    bucket = os.environ.get("OPTIMIZER_ARTIFACT_BUCKET", "").strip()
+    access_key = os.environ.get("OPTIMIZER_ARTIFACT_ACCESS_KEY", "").strip()
+    secret_key = os.environ.get("OPTIMIZER_ARTIFACT_SECRET_KEY", "").strip()
+    configured = bool(endpoint and bucket and access_key and secret_key)
+
+    if mode == "memory" or not configured:
+        if mode == "durable":
+            raise RuntimeError(
+                "OPTIMIZER_CONTROL_PLANE=durable requires OPTIMIZER_ARTIFACT_ENDPOINT/"
+                "BUCKET/ACCESS_KEY/SECRET_KEY to be set"
+            )
+        notes.append("artifacts: in-memory (set OPTIMIZER_ARTIFACT_* for a durable store)")
+        return MemoryArtifactStore(), False
+
+    if mode == "auto" and not _endpoint_reachable(endpoint, default_port=443):
+        notes.append("artifacts: in-memory (object store not answering at "
+                     "OPTIMIZER_ARTIFACT_ENDPOINT)")
+        return MemoryArtifactStore(), False
+
+    from production_optimizer.adapters.production import S3ArtifactStore
+
+    try:
+        store = S3ArtifactStore(
+            endpoint_url=endpoint, bucket=bucket, access_key=access_key, secret_key=secret_key
+        )
+    except Exception as error:
+        if mode == "durable":
+            raise RuntimeError(f"artifact store is unusable: {error}") from error
+        notes.append(f"artifacts: in-memory (S3 unusable: {type(error).__name__})")
+        return MemoryArtifactStore(), False
+
+    notes.append(f"artifacts: S3ArtifactStore({bucket})")
+    return store, True
+
+
+def _build_telemetry(mode: str, notes: list[str], *, service_name: str) -> Any:
+    otel_endpoint = os.environ.get("OPTIMIZER_OTEL_ENDPOINT", "").strip()
+    if mode == "memory" or not otel_endpoint:
+        notes.append("telemetry: disabled (set OPTIMIZER_OTEL_ENDPOINT to emit spans)")
+        return None
+
+    if mode == "auto" and not _endpoint_reachable(otel_endpoint, default_port=4317):
+        # The OTLP exporter retries in a background thread and prints a wall
+        # of connection errors over the actual run output, so a collector
+        # that is configured but not running must be detected up front.
+        notes.append("telemetry: disabled (no collector answering at OPTIMIZER_OTEL_ENDPOINT)")
+        return None
+
+    from production_optimizer.adapters.production import OtelTelemetryPort
+
+    try:
+        telemetry = OtelTelemetryPort(otlp_endpoint=otel_endpoint, service_name=service_name)
+    except Exception as error:
+        if mode == "durable":
+            raise RuntimeError(f"telemetry endpoint is unusable: {error}") from error
+        notes.append(f"telemetry: disabled (OTel unusable: {type(error).__name__})")
+        return None
+
+    notes.append("telemetry: OtelTelemetryPort")
+    return telemetry
 
 
 @contextmanager
@@ -306,65 +679,178 @@ class LocalScriptedModelProvider:
         }
 
 
-def select_model_provider(*, tenant_id: str) -> tuple[Any, str]:
-    """Pick a real `ModelProviderPort` if credentials/a local server exist,
-    else fall back to `LocalScriptedModelProvider` (clearly not real).
+def select_model_provider(
+    *, tenant_id: str, thread_id: str | None = None, deferrals: Any | None = None
+) -> tuple[Any, str]:
+    """Select approved model providers behind a resilient gateway.
 
-    Returns `(provider, model_id)` -- the model name is provider-specific
-    (an Anthropic alias, a local Ollama tag, ...) and must travel with the
-    provider it was chosen for, never a single constant reused across all of
-    them (see `NodePorts.model_id` and `a3_handlers._model_id`).
+    Each real provider first gets a bounded `RetryingModelProvider`; the
+    `ResilientModelGateway` above those wrappers opens a circuit after an
+    exhausted transient failure, then tries the next configured provider.
+    When none can serve, it raises `DeferredModelCallError`, which CLI/UI
+    entrypoints can surface as a clean retry-later halt.
     """
 
-    if api_key := os.environ.get("ANTHROPIC_API_KEY"):
-        from production_optimizer.adapters.production import AnthropicModelProvider
-
-        model_id = os.environ.get("ANTHROPIC_MODEL_ID", "claude-sonnet-5")
-        print(f"[model] using AnthropicModelProvider (ANTHROPIC_API_KEY found), model={model_id}")
-        return (
-            AnthropicModelProvider(
-                secrets=EnvSecretsBroker(api_key),
-                tenant_id=tenant_id,
-                secret_ref="anthropic-api-key",
-            ),
-            model_id,
+    raw_candidates = _select_raw_model_provider_candidates(tenant_id=tenant_id)
+    if not raw_candidates:
+        print(
+            "[model] no ANTHROPIC_API_KEY/OPENAI_API_KEY/GEMINI_API_KEY/DEEPSEEK_API_KEY set "
+            "and no local Ollama server reachable -- using LocalScriptedModelProvider "
+            "(NOT a real model). Set one of those env vars (see .env.example) to see real "
+            "LLM output."
         )
-    if api_key := os.environ.get("OPENAI_API_KEY"):
-        from production_optimizer.adapters.production import OpenAIModelProvider
+        return LocalScriptedModelProvider(), "local-scripted"
 
-        model_id = os.environ.get("OPENAI_MODEL_ID", "gpt-4o-mini")
-        print(f"[model] using OpenAIModelProvider (OPENAI_API_KEY found), model={model_id}")
-        return (
-            OpenAIModelProvider(
-                secrets=EnvSecretsBroker(api_key), tenant_id=tenant_id, secret_ref="openai-api-key"
-            ),
-            model_id,
-        )
-    if api_key := os.environ.get("GEMINI_API_KEY"):
-        from production_optimizer.adapters.production import GeminiModelProvider
+    from production_optimizer.adapters.production import (
+        ModelGatewayEvent,
+        ModelProviderCandidate,
+        ResilientModelGateway,
+        RetryingModelProvider,
+    )
 
-        model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-2.5-flash")
-        print(f"[model] using GeminiModelProvider (GEMINI_API_KEY found), model={model_id}")
-        return (
-            GeminiModelProvider(
-                secrets=EnvSecretsBroker(api_key), tenant_id=tenant_id, secret_ref="gemini-api-key"
-            ),
-            model_id,
-        )
-    if api_key := os.environ.get("DEEPSEEK_API_KEY"):
-        from production_optimizer.adapters.production import DeepSeekModelProvider
-
-        model_id = os.environ.get("DEEPSEEK_MODEL_ID", "deepseek-chat")
-        print(f"[model] using DeepSeekModelProvider (DEEPSEEK_API_KEY found), model={model_id}")
-        return (
-            DeepSeekModelProvider(
-                secrets=EnvSecretsBroker(api_key),
-                tenant_id=tenant_id,
-                secret_ref="deepseek-api-key",
-            ),
-            model_id,
+    def _announce_retry(
+        provider_name: str, attempt: int, delay: float, error: BaseException
+    ) -> None:
+        print(
+            f"[model:{provider_name}] {type(error).__name__} on attempt {attempt} "
+            f"({error}); retrying in {delay:.1f}s"
         )
 
+    def _announce_gateway(event: ModelGatewayEvent) -> None:
+        if event.event_type not in {"fallback", "fallback_success", "circuit_opened"}:
+            return
+        print(
+            f"[model-gateway] {event.event_type}: {event.provider_name}/"
+            f"{event.model_id} {event.detail}"
+        )
+
+    candidates = [
+        ModelProviderCandidate(
+            provider_name=name,
+            provider=RetryingModelProvider(
+                provider,
+                on_retry=lambda attempt, delay, error, provider_name=name: _announce_retry(
+                    provider_name, attempt, delay, error
+                ),
+            ),
+            model_id=model_id,
+        )
+        for name, provider, model_id in raw_candidates
+    ]
+    primary = candidates[0]
+    if len(candidates) == 1:
+        print(f"[model-gateway] primary={primary.provider_name}/{primary.model_id}; no fallback")
+    else:
+        chain = ", ".join(f"{c.provider_name}/{c.model_id}" for c in candidates)
+        print(f"[model-gateway] approved provider chain: {chain}")
+    return (
+        ResilientModelGateway(
+            candidates,
+            tenant_id=tenant_id,
+            thread_id=thread_id,
+            deferrals=deferrals,
+            on_event=_announce_gateway,
+        ),
+        primary.model_id,
+    )
+
+
+def _select_raw_model_provider_candidates(*, tenant_id: str) -> list[tuple[str, Any, str]]:
+    order = [
+        item.strip().lower()
+        for item in os.environ.get(
+            "OPTIMIZER_MODEL_PROVIDER_ORDER", "anthropic,openai,gemini,deepseek,ollama"
+        ).split(",")
+        if item.strip()
+    ]
+    builders = {
+        "anthropic": _anthropic_candidate,
+        "openai": _openai_candidate,
+        "gemini": _gemini_candidate,
+        "deepseek": _deepseek_candidate,
+        "ollama": _ollama_candidate,
+    }
+    candidates: list[tuple[str, Any, str]] = []
+    for provider_name in order:
+        builder = builders.get(provider_name)
+        if builder is None:
+            continue
+        candidate = builder(tenant_id=tenant_id)
+        if candidate is not None:
+            candidates.append(candidate)
+    return candidates
+
+
+def _anthropic_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
+    if not (api_key := os.environ.get("ANTHROPIC_API_KEY")):
+        return None
+    from production_optimizer.adapters.production import AnthropicModelProvider
+
+    model_id = os.environ.get("ANTHROPIC_MODEL_ID", "claude-sonnet-5")
+    print(f"[model] approved AnthropicModelProvider (ANTHROPIC_API_KEY found), model={model_id}")
+    return (
+        "anthropic",
+        AnthropicModelProvider(
+            secrets=EnvSecretsBroker(api_key),
+            tenant_id=tenant_id,
+            secret_ref="anthropic-api-key",
+        ),
+        model_id,
+    )
+
+
+def _openai_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
+    if not (api_key := os.environ.get("OPENAI_API_KEY")):
+        return None
+    from production_optimizer.adapters.production import OpenAIModelProvider
+
+    model_id = os.environ.get("OPENAI_MODEL_ID", "gpt-4o-mini")
+    print(f"[model] approved OpenAIModelProvider (OPENAI_API_KEY found), model={model_id}")
+    return (
+        "openai",
+        OpenAIModelProvider(
+            secrets=EnvSecretsBroker(api_key), tenant_id=tenant_id, secret_ref="openai-api-key"
+        ),
+        model_id,
+    )
+
+
+def _gemini_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
+    if not (api_key := os.environ.get("GEMINI_API_KEY")):
+        return None
+    from production_optimizer.adapters.production import GeminiModelProvider
+
+    model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-2.5-flash")
+    print(f"[model] approved GeminiModelProvider (GEMINI_API_KEY found), model={model_id}")
+    return (
+        "gemini",
+        GeminiModelProvider(
+            secrets=EnvSecretsBroker(api_key), tenant_id=tenant_id, secret_ref="gemini-api-key"
+        ),
+        model_id,
+    )
+
+
+def _deepseek_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
+    if not (api_key := os.environ.get("DEEPSEEK_API_KEY")):
+        return None
+    from production_optimizer.adapters.production import DeepSeekModelProvider
+
+    model_id = os.environ.get("DEEPSEEK_MODEL_ID", "deepseek-chat")
+    print(f"[model] approved DeepSeekModelProvider (DEEPSEEK_API_KEY found), model={model_id}")
+    return (
+        "deepseek",
+        DeepSeekModelProvider(
+            secrets=EnvSecretsBroker(api_key),
+            tenant_id=tenant_id,
+            secret_ref="deepseek-api-key",
+        ),
+        model_id,
+    )
+
+
+def _ollama_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
+    del tenant_id
     ollama_base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     parsed = urlsplit(ollama_base_url)
     try:
@@ -375,19 +861,12 @@ def select_model_provider(*, tenant_id: str) -> tuple[Any, str]:
 
             model_id = os.environ.get("OLLAMA_MODEL_ID", "llama3.2")
             print(
-                f"[model] using OllamaModelProvider (server reachable at {ollama_base_url}), "
-                f"model={model_id}"
+                f"[model] approved OllamaModelProvider (server reachable at "
+                f"{ollama_base_url}), model={model_id}"
             )
-            return OllamaModelProvider(base_url=ollama_base_url), model_id
+            return "ollama", OllamaModelProvider(base_url=ollama_base_url), model_id
     except OSError:
-        pass
-
-    print(
-        "[model] no ANTHROPIC_API_KEY/OPENAI_API_KEY/GEMINI_API_KEY/DEEPSEEK_API_KEY set and no "
-        "local Ollama server reachable -- using LocalScriptedModelProvider (NOT a real model). "
-        "Set one of those env vars (see .env.example) to see real LLM output."
-    )
-    return LocalScriptedModelProvider(), "local-scripted"
+        return None
 
 
 def read_model(

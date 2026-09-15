@@ -122,6 +122,23 @@ class CollectorRegistration(ContractModel):
     supported_metric_ids: set[str] = Field(default_factory=set)
 
 
+class EvidenceRecipeRegistration(ContractModel):
+    """Executable A2 recipe stored as a versioned collector registry payload."""
+
+    collector_id: str = Field(min_length=1)
+    supported_metric_ids: set[str] = Field(min_length=1)
+    source_type: str = Field(min_length=1)
+    recipe_id: str = Field(min_length=1)
+    recipe_version: str = Field(min_length=1)
+    execution_node: Literal["A2.60", "A2.61", "A2.62", "A2.63", "A2.64"] = "A2.60"
+    executor_capability: str | None = Field(default=None, min_length=1)
+    decoder_id: str = Field(default="json-selector/v1", min_length=1)
+    output_schema: str = Field(default="scalar/v1", min_length=1)
+    value_selector: str | None = Field(default=None, min_length=1)
+    action_parameters: dict[str, Any] = Field(default_factory=dict)
+    window_seconds: int = Field(default=3600, gt=0)
+
+
 class AnalyzerRegistration(ContractModel):
     analyzer_id: str = Field(min_length=1)
     version: str = Field(min_length=1)

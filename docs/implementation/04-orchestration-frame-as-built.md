@@ -25,7 +25,8 @@ This increment implements orchestration and a deterministic pilot runtime, and
 all 99 catalog task IDs now also have real, tested production handlers spanning
 both lanes: `application/{a1,a2,a3,b1,b2,c0}_handlers.py`. Lane A
 (`build_a1_runtime`/`build_a2_runtime`/`build_a3_runtime`) genuinely executes
-repository commands (git, pytest, ruff, `act`-replayed CI, pytest-benchmark) via
+repository commands (git, pytest, ruff, pytest-benchmark, a requester-declared
+command, or a Compose-based evaluation protocol) via
 `LocalWorkerBroker`, calls a real model provider (Anthropic/OpenAI/Gemini/
 DeepSeek/Ollama) for finding/strategy generation, and is runnable end to end
 against any real repository via `scripts/optimize.py`. Lane B

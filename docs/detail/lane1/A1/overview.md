@@ -1,5 +1,10 @@
 # A1: Manual Requirement Intake — Stage Overview
 
+> Refactor specification: [A1-A2 Docker Compose Evaluation Refactor](../docker-compose-evaluation-refactor.md).
+> It defines the proposed minimal Compose and evaluation-command handoff. This
+> overview describes the current/previous contract until that specification is
+> implemented.
+
 ## Purpose & Business Context
 
 **A1 converts a raw, structured, or mixed optimization request into an immutable, approved contract (`OptimizationRequest@1.0`)** that downstream stages (A2, A3) can rely on without ambiguity. The current code accepts structured input only; raw/mixed extraction remains an implementation gap under `REQ-A1-001`, not a change to the target business requirement.
@@ -29,7 +34,7 @@
 
 | Actor | Role | Interactions |
 |-------|------|--------------|
-| **Requester** | Supplies the structured optimization request (feature, criteria, workload, command). | Submits `ManualCasePayload` at A1.10; may be asked to clarify missing/conflicting information at A1.80 via interrupt. |
+| **Requester** | Supplies raw, structured, or mixed optimization intent and source context. | Submits the intake payload at A1.10; may be asked to clarify missing/conflicting information at A1.80 via interrupt. |
 | **Platform** | Deterministic business handlers that normalize, validate, and route the request. | Orchestrates all 14 A1 nodes; produces intermediate and final artifacts; enforces policy gates. |
 | **Approver** | Authorizes the frozen request when policy requires human review (e.g., high-risk scope, restricted feature). | Reviews the halting interrupt at A1.90; approves or rejects via `ResumeInterruptCommand`. Must hold `owner` or `approver` role. |
 | **Policy Owner** | Defines approval rules, allowed source paths, cost/time budgets, and risk thresholds. | Enforces gates at A1.80 (clarification) and A1.90 (approval); determines which actor role can self-approve. |
@@ -42,8 +47,8 @@ All 14 A1 nodes in execution order:
 
 | ID | Name | Produces | Side Effect | Purpose |
 |----|----|----------|-------------|---------|
-| [A1.10](A1.10.md) | Accept input | `IntakeEnvelope` | `READ_ONLY` | Validate tenant, case, path; preserve original input. |
-| [A1.20](A1.20.md) | Classify and extract | `RawRequestDraft` | `PURE` | Map structured fields (no LLM extraction). |
+| [A1.10](A1.10.md) | Accept input | `IntakeEnvelope` | `IDEMPOTENT_WRITE` | Validate intake identity/mode and preserve the original input by digest. |
+| [A1.20](A1.20.md) | Classify and extract | `RawRequestDraft` | `PURE` or bounded model call | Map structured fields or extract raw/mixed input while preserving uncertainty. |
 | [A1.30](A1.30.md) | Resolve local source | `LocalSourceIdentity` | `READ_ONLY` | Canonicalize path, detect git revision, dirty state. |
 | [A1.40](A1.40.md) | Discover project context | `ProjectProfile` | `READ_ONLY` | Scan for languages, manifests, tests, vendor paths. |
 | [A1.50](A1.50.md) | Resolve feature scope | `FeatureScope` | `PURE` | Map feature to include/exclude paths with confidence. |
@@ -329,7 +334,7 @@ Resume re-invokes the whole A1 graph from START; already-completed nodes cache-h
 
 ## Business Rules & Constraints
 
-1. **All `ManualCasePayload` fields are required** — no null/None defaults.
+1. **At least one supported intake mode is required**: raw, structured, or mixed. The current `ManualCasePayload` is structured-only and is an implementation subset.
 2. **One primary criterion, one correctness guardrail, non-empty workload and evidence are mandatory** for quality to pass.
 3. **Actor without `owner`/`approver`/`platform_owner` role cannot self-approve** — A1.90 halts for authorization.
 4. **Approval fingerprint = SHA256(sorted([objective, criteria, guardrails, workload, evidence, budget digests]))** — mismatch at A1.95 raises.
@@ -340,15 +345,20 @@ Resume re-invokes the whole A1 graph from START; already-completed nodes cache-h
    - TypeScript/JavaScript: 3 reps, 1 warmup
    - Unknown: 1 rep, 0 warmup
 7. **Evidence: minimum_samples = workload.repetitions for criteria; 1 for guardrails.**
-8. **Structured input only** — no LLM extraction; `extraction_confidence = 1.0`, `unresolved_fields = []`.
+8. **Structured input bypasses model extraction**; raw/mixed input uses bounded structured extraction, and unresolved values remain unknown. The current code implements only the structured branch.
 9. **Discovery capped at 500 files** — `discovery_truncated = True` triggers clarification halt.
 10. **Approval expires in 24 hours** — resumption rejected if expired.
 
 ---
 
-## Design Note: Structured Input Only
+## Target Contract Versus Current Implementation
 
-A1 no longer performs free-text LLM extraction (removed this session). The older blueprint docs describe this as a past design; it is now superseded. All fields (`feature_id`, `metric_id`, `direction`, `target`, `unit`, `command_id`) must be provided explicitly in `ManualCasePayload`.
+The accepted requirement `REQ-A1-001` and the Lane 1 blueprint define raw,
+structured, and mixed intake. The current Python contract requires explicit
+`feature_id`, `metric_id`, `direction`, `target`, `unit`, workload, environment,
+and command fields and therefore implements only the structured path. This
+difference is tracked as an implementation gap; it does not supersede the
+approved product requirement without formal change control.
 
 ---
 

@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "locator": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Locator",
+      "type": "string"
+    },
+    "repository_id": {
+      "minLength": 1,
+      "title": "Repository Id",
+      "type": "string"
+    },
+    "requested_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requested Revision"
+    },
+    "source_kind": {
+      "minLength": 1,
+      "title": "Source Kind",
+      "type": "string"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "repository_id",
+    "source_kind",
+    "locator"
+  ],
+  "title": "SourceAcquisitionRequest",
+  "type": "object"
+}

@@ -3,6 +3,33 @@
     "Criterion": {
       "additionalProperties": false,
       "properties": {
+        "acceptance_operator": {
+          "default": "lte",
+          "enum": [
+            "lt",
+            "lte",
+            "eq",
+            "gte",
+            "gt"
+          ],
+          "title": "Acceptance Operator",
+          "type": "string"
+        },
+        "aggregation": {
+          "default": "mean",
+          "enum": [
+            "mean",
+            "p50",
+            "p95",
+            "p99",
+            "sum",
+            "rate",
+            "maximum",
+            "verdict"
+          ],
+          "title": "Aggregation",
+          "type": "string"
+        },
         "criterion_id": {
           "minLength": 1,
           "title": "Criterion Id",
@@ -22,8 +49,20 @@
           "title": "Metric Id",
           "type": "string"
         },
+        "metric_schema_version": {
+          "default": "1.0",
+          "minLength": 1,
+          "title": "Metric Schema Version",
+          "type": "string"
+        },
         "target": {
           "title": "Target",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tolerance",
           "type": "number"
         },
         "unit": {

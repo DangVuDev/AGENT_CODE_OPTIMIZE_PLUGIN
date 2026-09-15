@@ -10,7 +10,7 @@ from production_optimizer.application import NodeRuntime
 from production_optimizer.contracts.state import OptimizationState
 
 from .catalog import ALL_BUSINESS_NODE_IDS
-from .lanes import build_lane_a_graph, build_lane_b_discovery_graph, build_lane_b_proposal_graph
+from .lanes import build_lane_a_graph, build_lane_b_graph
 
 RootRoute = Literal["manual", "discovery", "qualified"]
 
@@ -51,21 +51,19 @@ def build_root_graph(*, runtime: NodeRuntime | None = None, checkpointer: Any | 
     builder = StateGraph(OptimizationState)
     builder.add_node("initialize_case", _initialize)
     builder.add_node("lane_a", build_lane_a_graph(node_runtime))
-    builder.add_node("lane_b_discovery", build_lane_b_discovery_graph(node_runtime))
-    builder.add_node("lane_b_proposal", build_lane_b_proposal_graph(node_runtime))
+    builder.add_node("lane_b", build_lane_b_graph(node_runtime))
     builder.add_edge(START, "initialize_case")
     builder.add_conditional_edges(
         "initialize_case",
         _route_entrypoint,
         {
             "manual": "lane_a",
-            "discovery": "lane_b_discovery",
-            "qualified": "lane_b_proposal",
+            "discovery": "lane_b",
+            "qualified": "lane_b",
         },
     )
     builder.add_edge("lane_a", END)
-    builder.add_edge("lane_b_discovery", END)
-    builder.add_edge("lane_b_proposal", END)
+    builder.add_edge("lane_b", END)
     return builder.compile(checkpointer=checkpointer)
 
 

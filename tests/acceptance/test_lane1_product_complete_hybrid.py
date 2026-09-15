@@ -33,28 +33,17 @@ def test_lane1_product_complete_hybrid_acceptance_flow(tmp_path: Path) -> None:
     (tmp_path / "tests" / "test_checkout.py").write_text("def test_checkout():\n    assert True\n")
 
     payload = ManualCasePayload(
-        structured_request={
-            "objective": {
-                "statement": "Reduce checkout p95 latency while preserving correctness",
-                "feature_id": "checkout",
-            },
-            "criteria": [
-                {
-                    "metric_id": "p95_latency_ms",
-                    "direction": "minimize",
-                    "target": 180.0,
-                    "unit": "ms",
-                }
-            ],
-            "workload": {
-                "workload_id": "checkout-load",
-                "dataset_id": "checkout-fixture-small",
-                "environment_id": "local-dev",
-                "command_id": "pytest",
-            },
-        },
         local_path=str(tmp_path),
         allowed_root=str(tmp_path),
+        feature_id="checkout",
+        metric_id="p95_latency_ms",
+        direction="minimize",
+        target=180.0,
+        unit="ms",
+        workload_id="checkout-load",
+        dataset_id="checkout-fixture-small",
+        environment_id="local-dev",
+        command_id="pytest",
         actor_id="owner-1",
         actor_role="owner",
         policy_version="intake-policy-v1",
@@ -65,7 +54,9 @@ def test_lane1_product_complete_hybrid_acceptance_flow(tmp_path: Path) -> None:
     runtime = NodeRuntime(registrations, ports=_ports(store))
     graph = build_root_graph(runtime=runtime)
 
-    result = graph.invoke(_state(_payload_ref(store, payload)))
+    result = graph.invoke(
+        _state(_payload_ref(store, payload), actor_id="owner-1", actor_roles={"owner"})
+    )
 
     completed = set(result["completed_nodes"])
     artifact_types = {ref.artifact_type for ref in result["artifact_refs"]}

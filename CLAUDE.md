@@ -12,7 +12,7 @@
 - ✅ Business contracts: A1–C0 sealed artifacts + leaf models, 150+ classes, full Pydantic + JSON Schema support (`schemas/`)
 - ✅ Universal node execution: NodeRuntime with intent idempotency, artifact lifecycle, telemetry emission
 - ✅ **Business node handlers: all 99 nodes implemented and registered** — `application/{a1,a2,a3,b1,b2,c0}_handlers.py`, each with real, passing contract tests (`tests/contract/test_{a1,a2,a3,b1,b2,c0}_production_handlers.py`)
-- ✅ Lane A is a real, end-to-end-runnable optimizer: `scripts/optimize.py <repo> --objective "..."` runs A1→A2→A3→C0 against any real repository (git/pytest/ruff/`act`-CI/pytest-benchmark execution + a real LLM call)
+- ✅ Lane A is a real, end-to-end-runnable optimizer: `scripts/optimize.py <repo> --objective "..."` runs A1→A2→A3→C0 against any real repository (git/pytest/ruff/pytest-benchmark execution, or a requester-declared command via `--command-id`, or a Compose-based evaluation via `--execution-profile docker_compose` + a real LLM call)
 - ✅ Lane B (B1 discovery, B2 proposal) has equally real handler logic, including B1.95/B2.22 mounting the same real A2/A3 subgraphs Lane A uses — but **no scheduler/CLI entrypoint exists yet**; it has only been exercised through contract tests that seed state directly
 - ✅ Human-in-the-loop resume/approval: `application/resume.py`, used by A1.90, A2.31 (LLM-suggested command approval), and B2's owner-review routing
 - ✅ Node manifest: 99 task IDs → input/output contract bindings (`orchestration/manifest.py`, `manifests/node-manifest.json`)
@@ -127,7 +127,7 @@ src/production_optimizer/application/
 ├── node_contract.py         # NodeSpec, SideEffectClass
 ├── a1_handlers.py           # Real A1 (Requirement Intake) production handlers
 ├── a2_handlers.py           # Real A2 (Real Baseline) production handlers + A2_BLOCKED_NODES (now empty)
-├── a2_worker_capabilities.py # LocalWorkerBroker capability functions A2 dispatches to (pytest/ruff/act/benchmark)
+├── a2_worker_capabilities.py # LocalWorkerBroker capability functions A2 dispatches to (pytest/ruff/benchmark/compose_evaluation)
 ├── a3_handlers.py           # Real A3 (Grounded Solutions) production handlers, incl. bounded revision loop
 ├── b1_handlers.py           # Real B1 (Automatic Discovery) production handlers; merges in real A2 at B1.95
 ├── b2_handlers.py           # Real B2 (Automatic Proposal) production handlers; merges in real A3 at B2.22
@@ -163,7 +163,7 @@ tests/unit/
 ```
 tests/contract/
 ├── test_a1_production_handlers.py      # Real A1 handlers end to end
-├── test_a2_production_handlers.py      # Real A2: git/pytest/ruff/act/pytest-benchmark via LocalWorkerBroker
+├── test_a2_production_handlers.py      # Real A2: git/pytest/ruff/pytest-benchmark/docker_compose via LocalWorkerBroker
 ├── test_a3_production_handlers.py      # Real A3: scripted model provider, revision loop, quality gates
 ├── test_b1_production_handlers.py      # Real B1: 25 native nodes + embedded real A2 at B1.95
 ├── test_b2_production_handlers.py      # Real B2: 11 native nodes + embedded real A3 at B2.22

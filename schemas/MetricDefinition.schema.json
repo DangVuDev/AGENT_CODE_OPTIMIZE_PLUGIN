@@ -1,0 +1,94 @@
+{
+  "additionalProperties": false,
+  "description": "Immutable interpretation of one metric identifier.",
+  "properties": {
+    "accepted_source_types": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Accepted Source Types",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "aggregation": {
+      "enum": [
+        "mean",
+        "p50",
+        "p95",
+        "p99",
+        "sum",
+        "rate",
+        "maximum",
+        "verdict"
+      ],
+      "title": "Aggregation",
+      "type": "string"
+    },
+    "canonical_unit": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Canonical Unit",
+      "type": "string"
+    },
+    "comparison": {
+      "default": "threshold",
+      "enum": [
+        "threshold",
+        "relative",
+        "statistical",
+        "guardrail"
+      ],
+      "title": "Comparison",
+      "type": "string"
+    },
+    "default_direction": {
+      "enum": [
+        "minimize",
+        "maximize",
+        "target"
+      ],
+      "title": "Default Direction",
+      "type": "string"
+    },
+    "metric_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "minimum_samples": {
+      "default": 1,
+      "maximum": 10000,
+      "minimum": 1,
+      "title": "Minimum Samples",
+      "type": "integer"
+    },
+    "schema_version": {
+      "default": "1.0",
+      "maxLength": 32,
+      "minLength": 1,
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "value_kind": {
+      "enum": [
+        "number",
+        "boolean",
+        "distribution"
+      ],
+      "title": "Value Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "metric_id",
+    "value_kind",
+    "canonical_unit",
+    "default_direction",
+    "aggregation",
+    "accepted_source_types"
+  ],
+  "title": "MetricDefinition",
+  "type": "object"
+}

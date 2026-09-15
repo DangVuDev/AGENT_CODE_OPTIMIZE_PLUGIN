@@ -1,5 +1,10 @@
 # A2 Real Baseline — Business and Technical Analysis
 
+> Refactor specification: [A1-A2 Docker Compose Evaluation Refactor](../docker-compose-evaluation-refactor.md).
+> It defines the proposed Compose worker lifecycle while preserving this A2
+> LangGraph topology. This overview describes the current/previous contract
+> until that specification is implemented.
+
 ## 1. Purpose and Scope
 
 A2 proves the pre-change behavior of the exact source state approved by A1.

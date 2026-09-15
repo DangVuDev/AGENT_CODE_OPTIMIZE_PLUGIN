@@ -100,8 +100,7 @@ def test_root_graph_routes_only_through_lane_subgraphs() -> None:
         START,
         "initialize_case",
         "lane_a",
-        "lane_b_discovery",
-        "lane_b_proposal",
+        "lane_b",
         END,
     }
     assert _business_nodes(build_root_graph()) == ALL_BUSINESS_NODE_IDS

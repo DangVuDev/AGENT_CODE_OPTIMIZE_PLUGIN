@@ -19,13 +19,15 @@ from .common import (
 )
 
 
-def build_a3_graph(runtime: NodeRuntime) -> Any:
+def build_a3_graph(runtime: NodeRuntime, *, checkpointer: Any | None = None) -> Any:
     builder = StateGraph(OptimizationState)
     add_nodes(builder, runtime, A3_NODE_IDS)
     builder.add_edge(START, "A3.10")
     add_linear_edges(builder, A3_NODE_IDS[:4])
     add_fan_out(builder, A3_FAN_OUT)
-    add_linear_edges(builder, A3_NODE_IDS[8:20])
+    add_linear_edges(builder, A3_NODE_IDS[8:12])
+    add_routed_edge(builder, "A3.51", {"continue": "A3.60", "rejected": END})
+    add_linear_edges(builder, A3_NODE_IDS[12:20])
     add_routed_edge(
         builder,
         "A3.81",
@@ -33,4 +35,6 @@ def build_a3_graph(runtime: NodeRuntime) -> Any:
     )
     add_routed_edge(builder, "A3.82", {"continue": "A3.60", "rejected": END})
     builder.add_edge("A3.90", END)
+    if checkpointer is not None:
+        return builder.compile(checkpointer=checkpointer)
     return builder.compile()

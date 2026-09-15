@@ -1,0 +1,6 @@
+/server
+/server.exe
+/evaluator
+/evaluator.exe
+/.gocache/
+coverage.out

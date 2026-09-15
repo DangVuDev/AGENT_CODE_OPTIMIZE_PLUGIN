@@ -57,6 +57,13 @@
       "title": "Authorized",
       "type": "boolean"
     },
+    "authorized_action_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Authorized Action Ids",
+      "type": "array"
+    },
     "case_id": {
       "maxLength": 100,
       "minLength": 1,
@@ -72,6 +79,13 @@
       "format": "date-time",
       "title": "Created At",
       "type": "string"
+    },
+    "denied_action_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Denied Action Ids",
+      "type": "array"
     },
     "denied_capabilities": {
       "items": {
@@ -112,6 +126,11 @@
       "default": "1.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "source_read_only": {
+      "default": true,
+      "title": "Source Read Only",
+      "type": "boolean"
     },
     "tenant_id": {
       "maxLength": 100,

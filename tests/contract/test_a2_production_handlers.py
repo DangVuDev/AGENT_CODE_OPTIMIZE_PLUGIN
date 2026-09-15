@@ -5,11 +5,12 @@ import subprocess
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import pytest
 from pydantic import BaseModel, TypeAdapter
 
+import production_optimizer.application.a2_worker_capabilities as worker_capabilities
 from production_optimizer.adapters.production.local_worker_broker import LocalWorkerBroker
 from production_optimizer.application import A2_BLOCKED_NODES, NodePorts, build_a2_runtime
 from production_optimizer.application.a2_worker_capabilities import (
@@ -35,6 +36,7 @@ from production_optimizer.contracts.a2 import (
     BranchEvidenceRefs,
     CollectorPlan,
     ComparabilityReport,
+    DecodedEvidenceObservation,
     EnvironmentManifest,
     EvidenceBundle,
     EvidenceQualityReport,
@@ -42,6 +44,8 @@ from production_optimizer.contracts.a2 import (
     NormalizedEvidenceSet,
     RawEvidenceFanIn,
     RepositoryManifest,
+    SourceAcquisitionRequest,
+    SourceMaterialization,
     SourceSnapshot,
     VerificationManifest,
 )
@@ -49,6 +53,12 @@ from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import canonical_json, sha256_digest
 from production_optimizer.contracts.commands import ResumeInterruptCommand
 from production_optimizer.contracts.envelope import ProducerIdentity
+from production_optimizer.contracts.evaluation import (
+    ComposeEvaluationWorkerResult,
+    ComposeExecutionContract,
+    ContainerCommandSpec,
+    EvaluationSpec,
+)
 from production_optimizer.contracts.platform import (
     ActorContext,
     IntentRecord,
@@ -60,6 +70,7 @@ from production_optimizer.contracts.platform import (
     WorkerJob,
     WorkerReceipt,
 )
+from production_optimizer.contracts.registries import RegistryKind, RegistryRecord
 from production_optimizer.orchestration.catalog import A2_NODE_IDS
 from production_optimizer.orchestration.subgraphs import build_a2_graph
 
@@ -150,6 +161,11 @@ def _build_request(
     relative_path: str,
     minimum_samples: int = 3,
     accepted_source_types: frozenset[str] = frozenset({"benchmark", "test", "telemetry"}),
+    metric_id: str = "p95_latency_ms",
+    canonical_unit: str = "ms",
+    aggregation: Literal["mean", "p50", "p95", "p99", "sum", "rate", "verdict"] = "p95",
+    source_kind: str = "local_directory",
+    locator: str | None = None,
 ) -> OptimizationRequest:
     return OptimizationRequest(
         artifact_id="request-1",
@@ -164,15 +180,17 @@ def _build_request(
             allowed_root_id=allowed_root_id,
             relative_path=relative_path,
             requested_revision=None,
+            source_kind=source_kind,
+            locator=locator,
         ),
         objective=Objective(statement="improve latency", feature_id="local-feature"),
         criteria=[
             Criterion(
                 criterion_id="primary",
-                metric_id="p95_latency_ms",
+                metric_id=metric_id,
                 direction="minimize",
                 target=100.0,
-                unit="ms",
+                unit=canonical_unit,
                 weight=1.0,
             )
         ],
@@ -192,6 +210,9 @@ def _build_request(
                 accepted_source_types=set(accepted_source_types),
                 minimum_samples=minimum_samples,
                 mandatory=True,
+                metric_id=metric_id,
+                canonical_unit=canonical_unit,
+                aggregation=aggregation,
             )
         ],
         budget=ExecutionBudget(
@@ -220,12 +241,22 @@ def _seed_request(
     relative_path: str,
     minimum_samples: int = 3,
     accepted_source_types: frozenset[str] = frozenset({"benchmark", "test", "telemetry"}),
+    metric_id: str = "p95_latency_ms",
+    canonical_unit: str = "ms",
+    aggregation: Literal["mean", "p50", "p95", "p99", "sum", "rate", "verdict"] = "p95",
+    source_kind: str = "local_directory",
+    locator: str | None = None,
 ) -> ArtifactRef:
     request = _build_request(
         allowed_root_id=allowed_root_id,
         relative_path=relative_path,
         minimum_samples=minimum_samples,
         accepted_source_types=accepted_source_types,
+        metric_id=metric_id,
+        canonical_unit=canonical_unit,
+        aggregation=aggregation,
+        source_kind=source_kind,
+        locator=locator,
     )
     content = canonical_json(request)
     digest = sha256_digest(content)
@@ -292,6 +323,85 @@ class _AcceptingWorkerBroker:
         return None
 
 
+class _MemoryRegistry:
+    def __init__(self, records: list[RegistryRecord]) -> None:
+        self._records = records
+
+    def resolve(
+        self,
+        *,
+        tenant_id: str,
+        registry_kind: RegistryKind,
+        record_id: str,
+        at: datetime,
+    ) -> RegistryRecord | None:
+        return next(
+            (
+                record
+                for record in self.list_active(
+                    tenant_id=tenant_id, registry_kind=registry_kind, at=at
+                )
+                if record.record_id == record_id
+            ),
+            None,
+        )
+
+    def list_active(
+        self, *, tenant_id: str, registry_kind: RegistryKind, at: datetime
+    ) -> list[RegistryRecord]:
+        return [
+            record
+            for record in self._records
+            if record.tenant_id == tenant_id
+            and record.registry_kind == registry_kind
+            and record.enabled
+            and record.valid_from <= at
+            and (record.valid_until is None or at < record.valid_until)
+        ]
+
+
+class _MaterializedSourceProvider:
+    def __init__(self, materialized_path: Path) -> None:
+        self.materialized_path = materialized_path
+        self.requests: list[SourceAcquisitionRequest] = []
+
+    def acquire(self, request: SourceAcquisitionRequest) -> SourceMaterialization:
+        self.requests.append(request)
+        return SourceMaterialization(
+            source_kind=request.source_kind,
+            locator=request.locator,
+            local_path=str(self.materialized_path),
+            resolved_revision="object-version-7",
+            metadata={"provider": "test-object-store"},
+        )
+
+    def healthcheck(self) -> bool:
+        return True
+
+
+class _PipeScoreDecoder:
+    def decode(
+        self,
+        *,
+        decoder_id: str,
+        content: bytes,
+        output_schema: str,
+        value_selector: str | None,
+    ) -> list[DecodedEvidenceObservation]:
+        assert decoder_id == "pipe-score/v1"
+        assert output_schema == "campaign-value-observation/v1"
+        assert value_selector is None
+        return [
+            DecodedEvidenceObservation(
+                value=float(token), unit="points", dimensions={"scenario": "base"}
+            )
+            for token in content.decode("ascii").split("|")
+        ]
+
+    def healthcheck(self) -> bool:
+        return True
+
+
 def _ports_with_execution(
     store: _MemoryArtifactStore,
     *,
@@ -306,9 +416,98 @@ def _ports_with_execution(
     )
 
 
+def test_compose_worker_runs_lifecycle_and_validates_evaluator_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "compose.yaml").write_text("services:\n  app:\n    image: local/test\n")
+    store = _MemoryArtifactStore()
+    execution = ComposeExecutionContract(
+        compose_file="compose.yaml",
+        application_services=["app"],
+        evaluations=[
+            EvaluationSpec(
+                evaluation_id="checkout-feature",
+                command=ContainerCommandSpec(
+                    service="app", argv=["sh", "scripts/evaluate-checkout.sh"]
+                ),
+                repetitions=2,
+                warmup_runs=1,
+                expected_metric_ids={"p95_latency_ms"},
+            )
+        ],
+    )
+    request = _build_request(allowed_root_id=str(tmp_path), relative_path=".").model_copy(
+        update={"execution": execution}
+    )
+    request_content = canonical_json(request)
+    request_ref = ArtifactRef(
+        artifact_type="OptimizationRequest",
+        schema_version="1.0",
+        artifact_id="compose-request",
+        content_digest=sha256_digest(request_content),
+        uri="memory://compose-request",
+    )
+    store.seed_json(request_ref, request_content)
+
+    @contextmanager
+    def workspace(*args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        yield tmp_path
+
+    commands: list[list[str]] = []
+
+    def fake_run(argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        commands.append(argv)
+        stdout = ""
+        if "config" in argv:
+            stdout = json.dumps({"services": {"app": {"image": "local/test"}}})
+        if "exec" in argv:
+            stdout = json.dumps(
+                {
+                    "schema_version": "1.0",
+                    "feature_id": "local-feature",
+                    "metrics": {"p95_latency_ms": 143.2},
+                }
+            )
+        return subprocess.CompletedProcess(argv, 0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(worker_capabilities, "_execution_workspace", workspace)
+    monkeypatch.setattr(worker_capabilities.subprocess, "run", fake_run)
+    capability = build_local_command_capabilities(store, tenant_id="TENANT-A")[
+        "compose_evaluation"
+    ]
+
+    result_ref = capability(
+        WorkerJob(
+            job_id="compose-job",
+            case_id="OPT-A2-1",
+            node_id="A2.50",
+            idempotency_key="compose-job",
+            input_refs=[request_ref],
+            capability="compose_evaluation",
+            timeout_seconds=180,
+        )
+    )
+
+    result = ComposeEvaluationWorkerResult.model_validate_json(
+        store.read(tenant_id="TENANT-A", ref=result_ref)
+    )
+    assert result.cleanup_confirmed
+    assert len(result.attempts) == 2
+    assert all(item.output is not None for item in result.attempts)
+    assert sum("exec" in command for command in commands) == 3
+    assert any("down" in command for command in commands)
+
+
 def _advance(
     runtime: NodeRuntime, node_id: str, state: dict[str, Any]
 ) -> dict[str, Any]:
+    if node_id == "A2.20" and not any(
+        ref.artifact_type == "A2IntakeDecision"
+        for ref in cast("list[ArtifactRef]", state.get("artifact_refs", []))
+    ):
+        state = _advance(runtime, "A2.10", state)
     result = runtime.execute(node_id, state)  # type: ignore[arg-type]
     existing_refs = cast("list[ArtifactRef]", state.get("artifact_refs", []))
     new_refs = cast("list[ArtifactRef]", result.get("artifact_refs", []))
@@ -380,11 +579,11 @@ def test_a2_20_captures_snapshot(tmp_path: Path) -> None:
     state = _state(request_ref)
     runtime = build_a2_runtime(ports=_ports(store))
 
-    result = runtime.execute("A2.20", state)  # type: ignore[arg-type]
+    result = _advance(runtime, "A2.20", state)
 
     assert result["current_node"] == "A2.20"
     assert len(result["artifact_refs"]) > 0
-    snapshot_ref = result["artifact_refs"][0]
+    snapshot_ref = _ref_by_type(result, "SourceSnapshot")
     assert snapshot_ref.artifact_type == "SourceSnapshot"
 
     snapshot = _model_from_ref(store, snapshot_ref, SourceSnapshot)
@@ -394,19 +593,52 @@ def test_a2_20_captures_snapshot(tmp_path: Path) -> None:
     assert any(f.relative_path == "src/main.py" for f in snapshot.files)
 
 
-def test_a2_20_raises_for_missing_source(tmp_path: Path) -> None:
+def test_a2_10_rejects_missing_source_before_snapshot(tmp_path: Path) -> None:
     store = _MemoryArtifactStore()
     missing_root = tmp_path / "does-not-exist"
     request_ref = _seed_request(store, allowed_root_id=str(missing_root), relative_path="repo")
     state = _state(request_ref)
     runtime = build_a2_runtime(ports=_ports(store))
 
-    try:
-        runtime.execute("A2.20", state)  # type: ignore[arg-type]
-    except ValueError as exc:
-        assert "does not exist" in str(exc)
-    else:
-        raise AssertionError("expected ValueError for missing source path")
+    result = runtime.execute("A2.10", state)  # type: ignore[arg-type]
+
+    assert result["node_routes"]["A2.10"] == "rejected"
+    decision = _model_from_ref(store, result["artifact_refs"][0], A2IntakeDecision)
+    assert not decision.verified
+    assert not decision.source_reachable
+
+
+def test_a2_20_acquires_non_local_source_through_provider(tmp_path: Path) -> None:
+    store = _MemoryArtifactStore()
+    materialized = tmp_path / "materialized-object"
+    materialized.mkdir()
+    (materialized / "payload.bin").write_bytes(b"domain-specific-payload")
+    provider = _MaterializedSourceProvider(materialized)
+    request_ref = _seed_request(
+        store,
+        allowed_root_id="provider-managed",
+        relative_path=".",
+        source_kind="object_store",
+        locator="s3://tenant-bucket/input/object-version-7",
+    )
+    state = _state(request_ref)
+    runtime = build_a2_runtime(
+        ports=NodePorts(
+            artifacts=store,
+            intents=_MemoryIntentLedger(),
+            sources=provider,
+        )
+    )
+
+    state = _advance(runtime, "A2.20", state)
+
+    snapshot = _model_from_ref(store, _ref_by_type(state, "SourceSnapshot"), SourceSnapshot)
+    assert snapshot.source_kind == "object_store"
+    assert snapshot.source_locator == "s3://tenant-bucket/input/object-version-7"
+    assert snapshot.git_revision == "object-version-7"
+    assert snapshot.archive_ref is not None
+    assert store.verify(tenant_id="TENANT-A", ref=snapshot.archive_ref)
+    assert provider.requests[0].repository_id == "repo-123"
 
 
 def _seed_python_repo(tmp_path: Path) -> Path:
@@ -485,34 +717,40 @@ def test_a2_31_rejects_unconfigured_tools(tmp_path: Path) -> None:
     assert len(verification.rejected_commands) == 5
 
 
-def _act_available() -> bool:
-    import shutil
+def test_a2_31_prefers_the_requester_declared_command_id(tmp_path: Path) -> None:
+    """`ManualCasePayload.command_id` (via A1's `WorkloadContract.command_id`)
+    is the highest-trust signal -- A2.31 must use it verbatim rather than
+    guess from pyproject.toml conventions, and it must never require the
+    `act`/CI-replay job-detection this test replaces (removed: `act -l`'s
+    job selection had no way to know which job actually ran the tests --
+    see contracts/a2.py's `RepositoryCommand.source` docstring)."""
 
-    if shutil.which("act") is None:
-        return False
-    probe = subprocess.run(["docker", "info"], capture_output=True, timeout=10, check=False)
-    return probe.returncode == 0
-
-
-def test_a2_31_detects_command_from_ci_config(tmp_path: Path) -> None:
-    if not _act_available():
-        pytest.skip("act and/or a reachable Docker daemon are not available")
     store = _MemoryArtifactStore()
     repo = tmp_path / "repo"
     repo.mkdir()
-    (repo / "README.md").write_text("# repo with CI but no pyproject.toml convention")
-    workflows = repo / ".github" / "workflows"
-    workflows.mkdir(parents=True)
-    (workflows / "ci.yml").write_text(
-        "name: CI\n"
-        "on: [push]\n"
-        "jobs:\n"
-        "  run-tests:\n"
-        "    runs-on: ubuntu-latest\n"
-        "    steps:\n"
-        "      - run: echo running the real project CI job\n"
+    # Also has a real pyproject.toml pytest convention, to prove the
+    # declared command_id wins over -- not just alongside -- that heuristic.
+    (repo / "pyproject.toml").write_text("[tool.pytest.ini_options]\ntestpaths = ['tests']\n")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_sample.py").write_text("def test_ok():\n    assert True\n")
+
+    base_request = _build_request(allowed_root_id=str(repo.parent), relative_path="repo")
+    request = base_request.model_copy(
+        update={
+            "workload": base_request.workload.model_copy(
+                update={"command_id": "pytest tests/ -v"}
+            )
+        }
     )
-    request_ref = _seed_request(store, allowed_root_id=str(repo.parent), relative_path="repo")
+    request_content = canonical_json(request)
+    request_ref = ArtifactRef(
+        artifact_type="OptimizationRequest",
+        schema_version="1.0",
+        artifact_id="declared-command-request",
+        content_digest=sha256_digest(request_content),
+        uri="memory://declared-command-request",
+    )
+    store.seed_json(request_ref, request_content)
     state = _state(request_ref)
     runtime = build_a2_runtime(ports=_ports(store))
 
@@ -522,57 +760,11 @@ def test_a2_31_detects_command_from_ci_config(tmp_path: Path) -> None:
 
     verification_ref = _ref_by_type(state, "VerificationManifest")
     verification = _model_from_ref(store, verification_ref, VerificationManifest)
-    unit_command = next(c for c in verification.commands if c.kind == "unit")
-    assert unit_command.source == "ci_config"
-    assert unit_command.argv[0] == "act"
-    assert "run-tests" in unit_command.argv
-
-
-def test_a2_31_ci_detection_runs_the_real_job_via_act(tmp_path: Path) -> None:
-    """The `act`-produced command isn't just detected -- it actually runs
-    the real CI job through the normal A2.60/61/62 worker pipeline."""
-
-    if not _act_available():
-        pytest.skip("act and/or a reachable Docker daemon are not available")
-    store = _MemoryArtifactStore()
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    (repo / "README.md").write_text("# repo with CI but no pyproject.toml convention")
-    workflows = repo / ".github" / "workflows"
-    workflows.mkdir(parents=True)
-    (workflows / "ci.yml").write_text(
-        "name: CI\n"
-        "on: [push]\n"
-        "jobs:\n"
-        "  run-tests:\n"
-        "    runs-on: ubuntu-latest\n"
-        "    steps:\n"
-        "      - run: echo running the real project CI job\n"
-    )
-    request_ref = _seed_request(store, allowed_root_id=str(repo.parent), relative_path="repo")
-    broker = LocalWorkerBroker(
-        capabilities=build_local_command_capabilities(store, tenant_id="TENANT-A")
-    )
-    try:
-        ports = NodePorts(
-            artifacts=store, intents=_MemoryIntentLedger(), policy=_AllowPolicy(), workers=broker
-        )
-        runtime = build_a2_runtime(ports=ports)
-        state = _state(request_ref)
-        state = _advance(runtime, "A2.20", state)
-        state = _advance(runtime, "A2.30", state)
-        state = _advance(runtime, "A2.31", state)
-        state = _advance_to_a2_50(runtime, state)
-
-        state = _advance(runtime, "A2.61", state)
-        test_branch = _model_from_ref(
-            store, _require_branch_ref_for_test(state, "A2.61"), BranchEvidenceRefs
-        )
-        assert test_branch.unavailable_reason is None
-        assert test_branch.evidence[0].evidence_type == "unit_command_result"
-        assert test_branch.evidence[0].value == 0.0
-    finally:
-        broker.close()
+    unit_commands = [c for c in verification.commands if c.kind == "unit"]
+    assert len(unit_commands) == 1, "declared command_id must not duplicate with pyproject.toml"
+    assert unit_commands[0].source == "user_declared"
+    assert unit_commands[0].argv == ["pytest", "tests/", "-v"]
+    assert unit_commands[0].command_id == "pytest tests/ -v"
 
 
 class _ScriptedA2ModelProvider:
@@ -660,8 +852,12 @@ def test_a2_31_halts_for_approval_then_resumes_with_llm_command(tmp_path: Path) 
         assert verification.commands[0].source == "llm_suggested"
         assert verification.commands[0].argv == ["python", "-c", "print(1)"]
         assert len(model.calls) == 1
-        assert "A2.95" in set(resumed["completed_nodes"])
-        assert resumed["baseline_ref"].artifact_type == "BaselineSnapshot"
+        # The approved command proves only a unit-command result. It cannot
+        # satisfy the p95 latency requirement, so the graph must stop at the
+        # evidence-quality gate instead of relabelling it as latency data.
+        assert "A2.90" in set(resumed["completed_nodes"])
+        assert "A2.95" not in set(resumed["completed_nodes"])
+        assert resumed["node_routes"]["A2.90"] == "missing"
     finally:
         broker.close()
 
@@ -1018,7 +1214,13 @@ def test_a2_71_normalizes_fanned_in_evidence(tmp_path: Path) -> None:
 
         assert not normalized.conversion_failures
         assert len(normalized.evidence) == len(fan_in.evidence_ids)
-        assert all(item.normalized_ref == item.raw_ref for item in normalized.evidence)
+        assert all(item.normalized_ref is not None for item in normalized.evidence)
+        assert all(item.normalized_ref != item.raw_ref for item in normalized.evidence)
+        assert all(
+            store.verify(tenant_id="TENANT-A", ref=item.normalized_ref)
+            for item in normalized.evidence
+            if item.normalized_ref is not None
+        )
 
 
 def test_a2_80_binds_evidence_bundle(tmp_path: Path) -> None:
@@ -1044,7 +1246,15 @@ def test_a2_80_binds_evidence_bundle(tmp_path: Path) -> None:
         assert bundle.coverage["static"] == 2.0
 
 
-def test_a2_90_fails_quality_gate_when_minimum_samples_unmet(tmp_path: Path) -> None:
+def test_a2_90_accepts_a_single_deterministic_verdict(tmp_path: Path) -> None:
+    """A command exit code is one verdict, not a sample from a distribution.
+
+    `minimum_samples=3` still stands for sampled evidence (see the benchmark
+    case below); demanding three identical re-runs of the same suite against
+    the same immutable snapshot added no information and made every
+    correctness-only case unsatisfiable.
+    """
+
     store = _MemoryArtifactStore()
     repo = _seed_python_repo(tmp_path)
     request_ref = _seed_request(
@@ -1053,6 +1263,38 @@ def test_a2_90_fails_quality_gate_when_minimum_samples_unmet(tmp_path: Path) -> 
         relative_path="repo",
         minimum_samples=3,
         accepted_source_types=frozenset({"test"}),
+        metric_id="unit_command_result",
+        canonical_unit="exit_code",
+        aggregation="verdict",
+    )
+    state = _state(request_ref)
+
+    with _local_worker_ports(store) as ports:
+        runtime = build_a2_runtime(ports=ports)
+        state = _advance_to_a2_70(runtime, state)
+        state = _advance(runtime, "A2.71", state)
+        state = _advance(runtime, "A2.80", state)
+        state = _advance(runtime, "A2.90", state)
+
+        report = _model_from_ref(
+            store, _ref_by_type(state, "EvidenceQualityReport"), EvidenceQualityReport
+        )
+        assert report.mandatory_coverage["evidence-primary"] is True
+        assert not any("evidence-primary" in failure for failure in report.sample_failures)
+
+
+def test_a2_90_still_fails_when_sampled_evidence_is_missing(tmp_path: Path) -> None:
+    """The gate must keep biting: a criterion that demands sampled
+    (benchmark) evidence is not satisfied by a repo that produces none."""
+
+    store = _MemoryArtifactStore()
+    repo = _seed_python_repo(tmp_path)
+    request_ref = _seed_request(
+        store,
+        allowed_root_id=str(repo.parent),
+        relative_path="repo",
+        minimum_samples=3,
+        accepted_source_types=frozenset({"benchmark"}),
     )
     state = _state(request_ref)
 
@@ -1090,14 +1332,28 @@ def test_a2_91_reports_comparable_dimensions(tmp_path: Path) -> None:
             store, _ref_by_type(state, "ComparabilityReport"), ComparabilityReport
         )
         assert report.comparable is True
-        assert {d.dimension for d in report.dimensions} == {"cache_state", "workload_identity"}
+        assert {d.dimension for d in report.dimensions} == {
+            "cache_state",
+            "concurrency",
+            "dataset_identity",
+            "source_snapshot",
+            "workload_identity",
+        }
         assert all(d.comparable for d in report.dimensions)
 
 
 def test_a2_95_raises_when_quality_gate_did_not_pass(tmp_path: Path) -> None:
     store = _MemoryArtifactStore()
     repo = _seed_python_repo(tmp_path)
-    request_ref = _seed_request(store, allowed_root_id=str(repo.parent), relative_path="repo")
+    # Demand sampled (benchmark) evidence this repo cannot produce -- a
+    # deterministic command verdict alone now legitimately satisfies its own
+    # requirement, so that is no longer a way to force a failed gate.
+    request_ref = _seed_request(
+        store,
+        allowed_root_id=str(repo.parent),
+        relative_path="repo",
+        accepted_source_types=frozenset({"benchmark"}),
+    )
     state = _state(request_ref)
 
     with _local_worker_ports(store) as ports:
@@ -1125,6 +1381,9 @@ def test_a2_95_publishes_baseline_when_gates_pass(tmp_path: Path) -> None:
         relative_path="repo",
         minimum_samples=1,
         accepted_source_types=frozenset({"test"}),
+        metric_id="unit_command_result",
+        canonical_unit="exit_code",
+        aggregation="verdict",
     )
     state = _state(request_ref)
 
@@ -1172,6 +1431,9 @@ def test_a2_production_graph_publishes_baseline_on_success(tmp_path: Path) -> No
         relative_path="repo",
         minimum_samples=1,
         accepted_source_types=frozenset({"test"}),
+        metric_id="unit_command_result",
+        canonical_unit="exit_code",
+        aggregation="verdict",
     )
     broker = LocalWorkerBroker(
         capabilities=build_local_command_capabilities(store, tenant_id="TENANT-A")
@@ -1205,7 +1467,12 @@ def test_a2_production_graph_stops_at_quality_gate_on_failure(tmp_path: Path) ->
 
     store = _MemoryArtifactStore()
     repo = _seed_python_repo(tmp_path)
-    request_ref = _seed_request(store, allowed_root_id=str(repo.parent), relative_path="repo")
+    request_ref = _seed_request(
+        store,
+        allowed_root_id=str(repo.parent),
+        relative_path="repo",
+        accepted_source_types=frozenset({"benchmark"}),
+    )
     broker = LocalWorkerBroker(
         capabilities=build_local_command_capabilities(store, tenant_id="TENANT-A")
     )
@@ -1222,6 +1489,96 @@ def test_a2_production_graph_stops_at_quality_gate_on_failure(tmp_path: Path) ->
         assert "A2.95" not in completed
         assert result["node_routes"]["A2.90"] in {"missing", "rejected"}
         assert result.get("baseline_ref") is None
+    finally:
+        broker.close()
+
+
+def test_a2_executes_registered_arbitrary_evidence_recipe_end_to_end(
+    tmp_path: Path,
+) -> None:
+    """A2 core accepts a domain value, not a Python/test/log-specific shape."""
+
+    store = _MemoryArtifactStore()
+    source = tmp_path / "domain-input"
+    source.mkdir()
+    (source / "campaign.asset").write_bytes(b"opaque-domain-input")
+    request_ref = _seed_request(
+        store,
+        allowed_root_id=str(source.parent),
+        relative_path=source.name,
+        minimum_samples=3,
+        accepted_source_types=frozenset({"business-evaluation"}),
+        metric_id="campaign_value_score",
+        canonical_unit="points",
+        aggregation="mean",
+    )
+    now = datetime.now(UTC)
+    registry = _MemoryRegistry(
+        [
+            RegistryRecord(
+                registry_kind=RegistryKind.COLLECTOR,
+                record_id="campaign-value-recipe",
+                version=7,
+                tenant_id="TENANT-A",
+                valid_from=now,
+                payload={
+                    "collector_id": "campaign-evaluator",
+                    "supported_metric_ids": ["campaign_value_score"],
+                    "source_type": "business-evaluation",
+                    "recipe_id": "campaign-value",
+                    "recipe_version": "7.2.0",
+                    "execution_node": "A2.60",
+                    "executor_capability": "evaluate.campaign-value",
+                    "decoder_id": "pipe-score/v1",
+                    "output_schema": "campaign-value-observation/v1",
+                },
+            )
+        ]
+    )
+
+    def evaluate_campaign_value(job: WorkerJob) -> ArtifactRef:
+        del job
+        content = b"41|42|43"
+        return store.put_blob(
+            tenant_id="TENANT-A",
+            content=content,
+            content_digest=sha256_digest(content),
+            media_type="application/octet-stream",
+        )
+
+    broker = LocalWorkerBroker(
+        capabilities={"evaluate.campaign-value": evaluate_campaign_value}
+    )
+    try:
+        ports = NodePorts(
+            artifacts=store,
+            intents=_MemoryIntentLedger(),
+            policy=_AllowPolicy(),
+            workers=broker,
+            registry=registry,
+            evidence_decoders=_PipeScoreDecoder(),
+        )
+        result = build_a2_graph(build_a2_runtime(ports=ports)).invoke(_state(request_ref))
+
+        assert "A2.95" in set(result["completed_nodes"])
+        plan = _model_from_ref(store, _ref_by_type(result, "CollectorPlan"), CollectorPlan)
+        assert plan.registry_record_versions == {"campaign-value": 7}
+        bundle = _model_from_ref(store, _ref_by_type(result, "EvidenceBundle"), EvidenceBundle)
+        observations = [
+            item for item in bundle.evidence if item.metric_id == "campaign_value_score"
+        ]
+        assert [item.value for item in observations] == [41.0, 42.0, 43.0]
+        assert all(item.requirement_id == "evidence-primary" for item in observations)
+        assert all(item.identity.recipe_version == "7.2.0" for item in observations)
+        baseline = _model_from_ref(
+            store, _ref_by_type(result, "BaselineSnapshot"), BaselineSnapshot
+        )
+        aggregate = next(
+            item for item in baseline.aggregates if item.metric_id == "campaign_value_score"
+        )
+        assert aggregate.mean == 42.0
+        assert aggregate.unit == "points"
+        assert aggregate.count == 3
     finally:
         broker.close()
 

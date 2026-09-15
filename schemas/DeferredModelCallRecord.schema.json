@@ -1,0 +1,210 @@
+{
+  "$defs": {
+    "DeferredModelCallStatus": {
+      "enum": [
+        "scheduled",
+        "running",
+        "succeeded",
+        "failed"
+      ],
+      "title": "DeferredModelCallStatus",
+      "type": "string"
+    },
+    "ModelCallFailureRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "error_type": {
+          "minLength": 1,
+          "title": "Error Type",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "provider_name": {
+          "minLength": 1,
+          "title": "Provider Name",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provider_name",
+        "model_id",
+        "retryable",
+        "error_type",
+        "message"
+      ],
+      "title": "ModelCallFailureRecord",
+      "type": "object"
+    },
+    "ModelRole": {
+      "description": "Which capacity a model call is made in.\n\nCarrying this on the request itself (not just as an adapter-side\nconvention) is what makes \"the generator cannot judge itself\" (A3\nplaybook) mechanically checkable: a judge call is a structurally\nseparate `ModelCompletionRequest`, never a continuation of a generator\nconversation.",
+      "enum": [
+        "generator",
+        "judge"
+      ],
+      "title": "ModelRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempts": {
+      "minimum": 0,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "deferral_id": {
+      "minLength": 1,
+      "title": "Deferral Id",
+      "type": "string"
+    },
+    "failures": {
+      "items": {
+        "$ref": "#/$defs/ModelCallFailureRecord"
+      },
+      "title": "Failures",
+      "type": "array"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "last_error_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error Ref"
+    },
+    "lease_expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Expires At"
+    },
+    "lease_owner": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lease Owner"
+    },
+    "node_id": {
+      "minLength": 1,
+      "title": "Node Id",
+      "type": "string"
+    },
+    "primary_model_id": {
+      "minLength": 1,
+      "title": "Primary Model Id",
+      "type": "string"
+    },
+    "prompt_version": {
+      "minLength": 1,
+      "title": "Prompt Version",
+      "type": "string"
+    },
+    "request_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "retry_after_seconds": {
+      "minimum": 0,
+      "title": "Retry After Seconds",
+      "type": "number"
+    },
+    "role": {
+      "$ref": "#/$defs/ModelRole"
+    },
+    "status": {
+      "$ref": "#/$defs/DeferredModelCallStatus"
+    },
+    "tenant_id": {
+      "minLength": 1,
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "thread_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Thread Id"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tenant_id",
+    "deferral_id",
+    "case_id",
+    "node_id",
+    "idempotency_key",
+    "request_digest",
+    "status",
+    "role",
+    "prompt_version",
+    "primary_model_id",
+    "failures",
+    "retry_after_seconds",
+    "available_at",
+    "attempts",
+    "created_at",
+    "updated_at"
+  ],
+  "title": "DeferredModelCallRecord",
+  "type": "object"
+}

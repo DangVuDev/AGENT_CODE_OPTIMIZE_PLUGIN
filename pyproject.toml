@@ -34,6 +34,11 @@ production = [
   "pyjwt[crypto]==2.13.0",
   "psycopg[binary,pool]==3.3.3",
 ]
+ui = [
+  "fastapi==0.141.1",
+  "sse-starlette==3.4.11",
+  "uvicorn==0.52.4",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/production_optimizer"]

@@ -38,6 +38,12 @@
       "title": "Artifact Type",
       "type": "string"
     },
+    "byte_count": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Byte Count",
+      "type": "integer"
+    },
     "case_id": {
       "maxLength": 100,
       "minLength": 1,
@@ -113,6 +119,13 @@
       "title": "Schema Version",
       "type": "string"
     },
+    "source_files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Files",
+      "type": "array"
+    },
     "tenant_id": {
       "maxLength": 100,
       "minLength": 1,
@@ -124,6 +137,13 @@
         "type": "string"
       },
       "title": "Test Roots",
+      "type": "array"
+    },
+    "unreadable_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Unreadable Paths",
       "type": "array"
     }
   },

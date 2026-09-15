@@ -1,0 +1,51 @@
+{
+  "local_path": "D:/OptimizeCode/fixtures/optimization-target-go",
+  "allowed_root": "D:/OptimizeCode/fixtures",
+  "feature_id": "checkout-calculation",
+  "workload_id": "checkout-http",
+  "environment_id": "docker-go-1.23",
+  "execution_profile": "docker_compose",
+  "compose_file": "compose.yaml",
+  "application_services": ["app"],
+  "evaluations": [
+    {
+      "evaluation_id": "checkout-http",
+      "command": {
+        "service": "app",
+        "argv": ["sh", "scripts/evaluate-checkout.sh"],
+        "timeout_seconds": 120
+      },
+      "repetitions": 5,
+      "warmup_runs": 1,
+      "expected_metric_ids": ["p95_latency_ms", "throughput_rps", "correctness"]
+    }
+  ],
+  "criteria": [
+    {
+      "metric_id": "p95_latency_ms",
+      "direction": "minimize",
+      "unit": "ms",
+      "weight": 0.8,
+      "target": 8
+    },
+    {
+      "metric_id": "throughput_rps",
+      "direction": "maximize",
+      "unit": "requests_per_second",
+      "weight": 0.2,
+      "target": 250
+    }
+  ],
+  "guardrail_metric_id": "correctness",
+  "actor_id": "local-owner",
+  "actor_role": "owner",
+  "policy_version": "intake-policy-v1",
+  "repetitions": 5,
+  "warmup_runs": 1,
+  "concurrency": 1,
+  "cache_state": "warm",
+  "deadline_seconds": 900,
+  "maximum_worker_seconds": 600,
+  "maximum_model_tokens": 12000,
+  "maximum_storage_bytes": 104857600
+}

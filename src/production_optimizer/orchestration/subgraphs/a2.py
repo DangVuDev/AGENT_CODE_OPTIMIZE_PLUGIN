@@ -12,21 +12,36 @@ from .common import (
     END,
     START,
     StateGraph,
-    add_fan_out,
     add_linear_edges,
     add_nodes,
     add_routed_edge,
 )
 
 
+def _execution_routes(state: OptimizationState) -> list[str] | str:
+    if state.get("node_routes", {}).get("A2.50") == "continue":
+        return list(A2_FAN_OUT.branches)
+    return "halt"
+
+
 def build_a2_graph(runtime: NodeRuntime) -> Any:
     builder = StateGraph(OptimizationState)
     add_nodes(builder, runtime, A2_NODE_IDS)
     builder.add_edge(START, "A2.10")
-    add_linear_edges(builder, A2_NODE_IDS[:4])
+    add_routed_edge(builder, "A2.10", {"continue": "A2.20", "rejected": END})
+    add_linear_edges(builder, A2_NODE_IDS[1:4])
     add_routed_edge(builder, "A2.31", {"continue": "A2.40", "approval": END})
-    add_linear_edges(builder, A2_NODE_IDS[4:7])
-    add_fan_out(builder, A2_FAN_OUT)
+    add_routed_edge(builder, "A2.40", {"continue": "A2.41", "missing": END})
+    builder.add_edge("A2.41", "A2.50")
+    builder.add_conditional_edges(
+        "A2.50",
+        _execution_routes,
+        {
+            **{branch: branch for branch in A2_FAN_OUT.branches},
+            "halt": END,
+        },
+    )
+    builder.add_edge(list(A2_FAN_OUT.branches), A2_FAN_OUT.join)
     add_linear_edges(builder, A2_NODE_IDS[12:16])
     add_routed_edge(
         builder,

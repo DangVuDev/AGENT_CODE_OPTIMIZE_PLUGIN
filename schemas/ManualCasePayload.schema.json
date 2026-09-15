@@ -1,6 +1,149 @@
 {
+  "$defs": {
+    "ContainerCommandSpec": {
+      "additionalProperties": false,
+      "description": "One repository-owned command executed inside a Compose service.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "service": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "title": "Service",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "exclusiveMinimum": 0,
+          "maximum": 86400,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "working_directory": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Directory"
+        }
+      },
+      "required": [
+        "service",
+        "argv"
+      ],
+      "title": "ContainerCommandSpec",
+      "type": "object"
+    },
+    "CriterionInput": {
+      "additionalProperties": false,
+      "description": "One requester-declared optimization criterion, before A1.61\ncanonicalizes it into a real `Criterion`.\n\n`weight` is the requester's own priority between criteria and is the only\nthing that orders them: S01.40 normalizes every weight against their sum\n(`weight / total_weight`) before scoring, so what matters is each\ncriterion's share, not its absolute value or its position in the list.",
+      "properties": {
+        "direction": {
+          "enum": [
+            "minimize",
+            "maximize",
+            "target"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "metric_id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "target": {
+          "minimum": 0,
+          "title": "Target",
+          "type": "number"
+        },
+        "unit": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "weight": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Weight",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric_id",
+        "direction",
+        "target",
+        "unit"
+      ],
+      "title": "CriterionInput",
+      "type": "object"
+    },
+    "EvaluationSpec": {
+      "additionalProperties": false,
+      "description": "Repeatable evaluator and the metric names it promises to emit.",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/ContainerCommandSpec"
+        },
+        "evaluation_id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "title": "Evaluation Id",
+          "type": "string"
+        },
+        "expected_metric_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Expected Metric Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "repetitions": {
+          "default": 1,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "warmup_runs": {
+          "default": 0,
+          "maximum": 50,
+          "minimum": 0,
+          "title": "Warmup Runs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evaluation_id",
+        "command",
+        "expected_metric_ids"
+      ],
+      "title": "EvaluationSpec",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
-  "description": "Raw command payload read by A1.10 from object storage.\n\nThis model is intentionally not graph state. `StartWorkflowCommand` carries\nonly an `ArtifactRef`; A1.10 reads this payload through the artifact port,\nvalidates it, and stores compact derived artifacts back to state.",
+  "description": "Manual A1 intake supporting raw, structured, and mixed requests.",
   "properties": {
     "actor_id": {
       "maxLength": 255,
@@ -15,17 +158,266 @@
       "title": "Actor Role",
       "type": "string"
     },
+    "allowed_analyzers": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Allowed Analyzers"
+    },
     "allowed_root": {
+      "description": "allowed root for security",
       "maxLength": 2048,
       "minLength": 1,
       "title": "Allowed Root",
       "type": "string"
     },
+    "application_services": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Application Services",
+      "type": "array"
+    },
+    "cache_state": {
+      "anyOf": [
+        {
+          "enum": [
+            "cold",
+            "warm",
+            "mixed"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cache State"
+    },
+    "command_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command Id"
+    },
+    "compose_file": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Compose File"
+    },
+    "concurrency": {
+      "anyOf": [
+        {
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Concurrency"
+    },
+    "criteria": {
+      "items": {
+        "$ref": "#/$defs/CriterionInput"
+      },
+      "maxItems": 32,
+      "title": "Criteria",
+      "type": "array"
+    },
+    "dataset_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "optional dataset/benchmark",
+      "title": "Dataset Id"
+    },
+    "deadline_seconds": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Deadline Seconds"
+    },
+    "direction": {
+      "anyOf": [
+        {
+          "enum": [
+            "minimize",
+            "maximize",
+            "target"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Direction"
+    },
+    "environment_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Environment Id"
+    },
+    "evaluations": {
+      "items": {
+        "$ref": "#/$defs/EvaluationSpec"
+      },
+      "maxItems": 64,
+      "title": "Evaluations",
+      "type": "array"
+    },
+    "execution_profile": {
+      "default": "legacy_discovery",
+      "enum": [
+        "legacy_discovery",
+        "docker_compose"
+      ],
+      "title": "Execution Profile",
+      "type": "string"
+    },
+    "feature_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Feature Id"
+    },
+    "guardrail_metric_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "optional guardrail metric",
+      "title": "Guardrail Metric Id"
+    },
     "local_path": {
+      "description": "repository root path",
       "maxLength": 2048,
       "minLength": 1,
       "title": "Local Path",
       "type": "string"
+    },
+    "maximum_model_tokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Maximum Model Tokens"
+    },
+    "maximum_storage_bytes": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Maximum Storage Bytes"
+    },
+    "maximum_worker_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Maximum Worker Seconds"
+    },
+    "metric_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Metric Id"
     },
     "policy_version": {
       "default": "intake-policy-v1",
@@ -37,7 +429,8 @@
     "raw_text": {
       "anyOf": [
         {
-          "maxLength": 20000,
+          "maxLength": 12000,
+          "minLength": 1,
           "type": "string"
         },
         {
@@ -47,18 +440,87 @@
       "default": null,
       "title": "Raw Text"
     },
-    "structured_request": {
+    "repetitions": {
       "anyOf": [
         {
-          "additionalProperties": true,
-          "type": "object"
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
         },
         {
           "type": "null"
         }
       ],
       "default": null,
-      "title": "Structured Request"
+      "title": "Repetitions"
+    },
+    "requester_hypothesis": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requester Hypothesis"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target"
+    },
+    "unit": {
+      "anyOf": [
+        {
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unit"
+    },
+    "warmup_runs": {
+      "anyOf": [
+        {
+          "maximum": 50,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Warmup Runs"
+    },
+    "workload_id": {
+      "anyOf": [
+        {
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workload Id"
     }
   },
   "required": [

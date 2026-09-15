@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "description": "One requester-declared optimization criterion, before A1.61\ncanonicalizes it into a real `Criterion`.\n\n`weight` is the requester's own priority between criteria and is the only\nthing that orders them: S01.40 normalizes every weight against their sum\n(`weight / total_weight`) before scoring, so what matters is each\ncriterion's share, not its absolute value or its position in the list.",
+  "properties": {
+    "direction": {
+      "enum": [
+        "minimize",
+        "maximize",
+        "target"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "metric_id": {
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Metric Id",
+      "type": "string"
+    },
+    "target": {
+      "minimum": 0,
+      "title": "Target",
+      "type": "number"
+    },
+    "unit": {
+      "maxLength": 100,
+      "minLength": 1,
+      "title": "Unit",
+      "type": "string"
+    },
+    "weight": {
+      "default": 1.0,
+      "exclusiveMinimum": 0,
+      "title": "Weight",
+      "type": "number"
+    }
+  },
+  "required": [
+    "metric_id",
+    "direction",
+    "target",
+    "unit"
+  ],
+  "title": "CriterionInput",
+  "type": "object"
+}

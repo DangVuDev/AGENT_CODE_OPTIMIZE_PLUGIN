@@ -64,6 +64,13 @@
       "title": "Created At",
       "type": "string"
     },
+    "dimensions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Dimensions",
+      "type": "object"
+    },
     "extensions": {
       "additionalProperties": true,
       "title": "Extensions",

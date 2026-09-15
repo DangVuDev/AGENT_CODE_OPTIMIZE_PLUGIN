@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "local_path": {
+      "minLength": 1,
+      "title": "Local Path",
+      "type": "string"
+    },
+    "locator": {
+      "minLength": 1,
+      "title": "Locator",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Metadata",
+      "type": "object"
+    },
+    "resolved_revision": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Resolved Revision"
+    },
+    "source_kind": {
+      "minLength": 1,
+      "title": "Source Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_kind",
+    "locator",
+    "local_path"
+  ],
+  "title": "SourceMaterialization",
+  "type": "object"
+}

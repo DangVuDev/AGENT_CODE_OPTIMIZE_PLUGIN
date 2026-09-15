@@ -26,6 +26,13 @@
   },
   "additionalProperties": false,
   "properties": {
+    "alternative_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Alternative Paths",
+      "type": "array"
+    },
     "artifact_id": {
       "maxLength": 100,
       "minLength": 1,
@@ -112,6 +119,13 @@
       "default": "1.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "supporting_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Supporting Paths",
+      "type": "array"
     },
     "tenant_id": {
       "maxLength": 100,

@@ -15,11 +15,13 @@ from production_optimizer.contracts.canonical import canonical_json, sha256_dige
 from production_optimizer.contracts.platform import IntentRecord, IntentStatus, TelemetryEvent
 from production_optimizer.contracts.state import OptimizationState
 from production_optimizer.ports.artifacts import ArtifactStore
+from production_optimizer.ports.evidence_decoder import EvidenceDecoderPort
 from production_optimizer.ports.intents import IntentLedger
 from production_optimizer.ports.model_provider import ModelProviderPort
 from production_optimizer.ports.policy import PolicyPort
 from production_optimizer.ports.registries import RegistryPort
 from production_optimizer.ports.secrets import SecretsBroker
+from production_optimizer.ports.source_provider import SourceProviderPort
 from production_optimizer.ports.telemetry import TelemetryPort
 from production_optimizer.ports.workers import WorkerBroker
 
@@ -81,6 +83,8 @@ class NodePorts:
     registry: RegistryPort | None = None
     model: ModelProviderPort | None = None
     model_id: str | None = None
+    sources: SourceProviderPort | None = None
+    evidence_decoders: EvidenceDecoderPort | None = None
 
 
 class BusinessNodeHandler(Protocol):
@@ -155,14 +159,20 @@ def _derive_idempotency_key(spec: NodeSpec, state: OptimizationState) -> str:
     with previously persisted intents.
 
     A3's `A3.81`<->`A3.82`<->`A3.60` revision loop (`orchestration/subgraphs/
-    a3.py`) can revisit the same `node_id` multiple times for one case with
-    genuinely different semantic input (a new revision pass) — the base key
-    above cannot distinguish those calls, so `_execute_idempotent` would
-    replay pass 0's cached result forever instead of re-executing. Appending
-    the revision counter *only when it is nonzero* fixes that while leaving
-    every pass-0 key (and every lane that never sets this field, i.e.
-    A1/A2/B1/B2/C0) byte-identical to before — no existing idempotency key
-    format changes.
+    a3.py`), S02's `S02.81`<->`S02.30` redraft loop
+    (`orchestration/subgraphs/s02.py`), and the shared `S03`<->`S04` (and,
+    from S06.50, `S06`<->`S03`) implementation-repair loop
+    (`orchestration/shared_workflow.py`) can each revisit the same `node_id`
+    multiple times for one case with genuinely different semantic input (a
+    new revision pass) — the base key above cannot distinguish those calls,
+    so `_execute_idempotent` would replay pass 0's cached result forever
+    instead of re-executing. Appending the revision counter *only when it is
+    nonzero* fixes that while leaving every pass-0 key (and every lane that
+    never sets any of these fields, i.e. A1/A2/B1/B2/C0/S01) byte-identical
+    to before — no existing idempotency key format changes. The three
+    counters never more than one applies to the same case (each lives only
+    inside its own stage's loop), so checking all three unconditionally is
+    safe.
 
     `resume_attempts` (see `application.resume.resume_case`) is the same
     fix for a different replay: a node that halted with `pending_interrupt`
@@ -178,13 +188,74 @@ def _derive_idempotency_key(spec: NodeSpec, state: OptimizationState) -> str:
     """
 
     base = f"{_require(state, 'case_id')}:{spec.node_id}:{spec.idempotency_key_version}"
-    revision_pass = state.get("a3_revision_attempts", 0)
-    if revision_pass:
-        base = f"{base}:rev{revision_pass}"
+    for field in ("a3_revision_attempts", "s02_revision_attempts", "s03_revision_attempts"):
+        revision_pass = state.get(field, 0)  # type: ignore[literal-required]
+        if revision_pass:
+            base = f"{base}:rev{revision_pass}"
     resume_attempt = state.get("resume_attempts", 0)
     if resume_attempt and state.get("resume_target_node") == spec.node_id:
         base = f"{base}:resume{resume_attempt}"
     return base
+
+
+def _next_route_key(node_id: str, existing_routes: Mapping[str, str], route: str) -> str:
+    """Pick the key `NodeRuntime._commit` should record this route under.
+
+    A3's `A3.81`<->`A3.82`<->`A3.60` revision loop and S02's
+    `S02.81`<->`S02.30` redraft loop can each revisit the same `node_id`
+    within one `graph.invoke()` call and legitimately produce a *different*
+    route each pass (e.g. "revision" then "rejected") -- `merge_node_routes`
+    (`contracts/state.py`) correctly treats two different values under the
+    same plain `node_id` key as a hard conflict, since ordinarily that would
+    mean nondeterministic replay.
+
+    A revisit with the *same* route as last time is not that case -- it is
+    the ordinary `application.resume.resume_case` shape, which re-invokes
+    the whole graph from `START` so every already-completed node upstream of
+    the halted one legitimately "reruns" (cache-hit, identical route) on
+    every resume. `merge_node_routes` already tolerates that (equal values
+    never conflict), so reusing the plain `node_id` key there keeps
+    `node_routes` from growing a new numbered entry on every resume of every
+    upstream node -- only an actual value change claims a new slot.
+
+    Keyed off `node_routes`'s *own* accumulated history (`existing_routes`,
+    the state as of just before this node runs) rather than either revision
+    counter: a counter-based suffix looks appealingly simple, but the
+    counter's value at write time (before this node's own contribution is
+    merged) and at `route_for`'s read time (after) disagree by exactly this
+    node's own increment, which silently mis-keys the very first repeat
+    visit. Counting *this node_id's own* prior appearances instead needs no
+    such synchronization: the first-ever visit (or a same-value replay)
+    always resolves to the plain `node_id`, and each new value claims the
+    next free `"{node_id}#N"` slot purely from what's already recorded, so
+    `route_for` can independently rediscover the same key by walking the
+    same numbering.
+    """
+
+    if node_id not in existing_routes:
+        return node_id
+    key = _latest_route_key(node_id, existing_routes)
+    assert key is not None
+    if existing_routes[key] == route:
+        return key
+    n = 2
+    while f"{node_id}#{n}" in existing_routes:
+        n += 1
+    return f"{node_id}#{n}"
+
+
+def _latest_route_key(node_id: str, routes: Mapping[str, str]) -> str | None:
+    """The counterpart lookup to `_next_route_key`: the highest-numbered
+    key recorded for `node_id`, or `None` if it never ran."""
+
+    if node_id not in routes:
+        return None
+    key = node_id
+    n = 2
+    while f"{node_id}#{n}" in routes:
+        key = f"{node_id}#{n}"
+        n += 1
+    return key
 
 
 class NodeRuntime:
@@ -233,7 +304,7 @@ class NodeRuntime:
         if spec.side_effect_class is SideEffectClass.PURE or self._ports is None:
             execution = registration.handler(state, self._ports)
             self._validate_execution(node_id, spec, execution)
-            return self._commit(node_id, execution)
+            return self._commit(node_id, execution, state)
 
         return self._execute_idempotent(node_id, registration, state)
 
@@ -259,7 +330,7 @@ class NodeRuntime:
         ):
             payload = ports.artifacts.read(tenant_id=tenant_id, ref=existing.output_ref)
             execution = _load_execution(payload)
-            return self._commit(node_id, execution)
+            return self._commit(node_id, execution, state)
 
         ports.intents.prepare(
             IntentRecord(
@@ -304,7 +375,7 @@ class NodeRuntime:
                 )
             )
 
-        return self._commit(node_id, execution)
+        return self._commit(node_id, execution, state)
 
     def _validate_execution(self, node_id: str, spec: NodeSpec, execution: NodeExecution) -> None:
         route = execution.route.value
@@ -325,11 +396,14 @@ class NodeRuntime:
                 f"{sorted(protected_fields)}"
             )
 
-    def _commit(self, node_id: str, execution: NodeExecution) -> dict[str, Any]:
+    def _commit(
+        self, node_id: str, execution: NodeExecution, state: OptimizationState
+    ) -> dict[str, Any]:
         updates = dict(execution.updates)
         updates["current_node"] = node_id
         updates["completed_nodes"] = [node_id]
-        updates["node_routes"] = {node_id: execution.route.value}
+        route_key = _next_route_key(node_id, state.get("node_routes", {}), execution.route.value)
+        updates["node_routes"] = {route_key: execution.route.value}
         return updates
 
 
@@ -353,6 +427,9 @@ def node_callable(
 def route_for(node_id: str) -> Callable[[OptimizationState], str]:
     def select(state: OptimizationState) -> str:
         routes = state.get("node_routes", {})
-        return routes.get(node_id, NodeRoute.CONTINUE.value)
+        route_key = _latest_route_key(node_id, routes)
+        if route_key is None:
+            return NodeRoute.CONTINUE.value
+        return routes[route_key]
 
     return select

@@ -66,6 +66,13 @@
       "title": "Extensions",
       "type": "object"
     },
+    "invalid_values": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Invalid Values",
+      "type": "array"
+    },
     "missing_fields": {
       "items": {
         "type": "string"
@@ -99,6 +106,13 @@
     "producer": {
       "$ref": "#/$defs/ProducerIdentity"
     },
+    "repair_owners": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Repair Owners",
+      "type": "object"
+    },
     "schema_version": {
       "const": "1.0",
       "default": "1.0",
@@ -110,6 +124,13 @@
       "minLength": 1,
       "title": "Tenant Id",
       "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
     }
   },
   "required": [

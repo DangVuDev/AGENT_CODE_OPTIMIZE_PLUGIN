@@ -164,10 +164,10 @@ def _build_request(
         criteria=[
             Criterion(
                 criterion_id="primary",
-                metric_id="p95_latency_ms",
-                direction="minimize",
-                target=100.0,
-                unit="ms",
+                metric_id="unit_command_result",
+                direction="target",
+                target=0.0,
+                unit="exit_code",
                 weight=1.0,
             )
         ],
@@ -187,6 +187,9 @@ def _build_request(
                 accepted_source_types={"test"},
                 minimum_samples=1,
                 mandatory=True,
+                metric_id="unit_command_result",
+                canonical_unit="exit_code",
+                aggregation="verdict",
             )
         ],
         budget=ExecutionBudget(
@@ -555,6 +558,68 @@ def test_a3_full_pipeline_reaches_solution_portfolio(tmp_path: Path) -> None:
     assert portfolio.strategies
     assert any(s.eligible for s in portfolio.strategies)
     assert state["solution_portfolio_ref"] == portfolio_ref
+
+
+class _UngroundedModelProvider(_ScriptedModelProvider):
+    """Cites an evidence id absent from the catalog for every finding draft.
+
+    Simulates a weak/local model that hallucinates a citation: A3.41 marks
+    every such citation `all_resolved=False`, so A3.51 must end up with zero
+    accepted findings -- the real crash scenario this test guards against.
+    """
+
+    def _finding_payload(self, context: str) -> dict[str, Any]:
+        payload = super()._finding_payload(context)
+        payload["findings"][0]["supporting_evidence_ids"] = ["evidence-does-not-exist"]
+        return payload
+
+
+def test_a3_51_routes_rejected_on_zero_accepted_findings(tmp_path: Path) -> None:
+    store = _MemoryArtifactStore()
+    repo = _seed_python_repo(tmp_path, failing_test=True)
+    guardrail = Guardrail(
+        guardrail_id="correctness",
+        metric_id="unit_command_result",
+        operator="eq",
+        threshold=0.0,
+        unit="exit_code",
+    )
+    request_ref = _seed_request(
+        store, allowed_root_id=str(repo.parent), relative_path="repo", guardrails=[guardrail]
+    )
+    state = _state(request_ref)
+
+    with _local_worker_ports(store) as a2_ports:
+        state = _run_a2_pipeline(store, a2_ports, state)
+
+    model = _UngroundedModelProvider()
+    ports = NodePorts(
+        artifacts=store, intents=_MemoryIntentLedger(), policy=_AllowPolicy(), model=model
+    )
+    a3_runtime = build_a3_runtime(ports=ports)
+
+    for node_id in (
+        "A3.10",
+        "A3.11",
+        "A3.20",
+        "A3.21",
+        "A3.30",
+        "A3.31",
+        "A3.32",
+        "A3.33",
+        "A3.40",
+        "A3.41",
+        "A3.50",
+    ):
+        state = _advance(a3_runtime, node_id, state)
+
+    state = _advance(a3_runtime, "A3.51", state)
+
+    assert state["node_routes"]["A3.51"] == "rejected"
+    assert not any(
+        ref.artifact_type == "FindingSet"
+        for ref in cast("list[ArtifactRef]", state["artifact_refs"])
+    )
 
 
 def test_a3_revision_loop_recovers_from_ineligible_strategy(tmp_path: Path) -> None:

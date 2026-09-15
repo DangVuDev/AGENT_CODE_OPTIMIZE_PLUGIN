@@ -48,9 +48,134 @@
       "title": "ApprovalBinding",
       "type": "object"
     },
+    "ComposeExecutionContract": {
+      "additionalProperties": false,
+      "description": "Immutable A1-to-A2 handoff for isolated product evaluation.",
+      "properties": {
+        "application_services": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Application Services",
+          "type": "array"
+        },
+        "cleanup_timeout_seconds": {
+          "default": 60,
+          "exclusiveMinimum": 0,
+          "maximum": 600,
+          "title": "Cleanup Timeout Seconds",
+          "type": "integer"
+        },
+        "compose_file": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Compose File",
+          "type": "string"
+        },
+        "evaluations": {
+          "items": {
+            "$ref": "#/$defs/EvaluationSpec"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Evaluations",
+          "type": "array"
+        },
+        "startup_timeout_seconds": {
+          "default": 180,
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "title": "Startup Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "compose_file",
+        "evaluations"
+      ],
+      "title": "ComposeExecutionContract",
+      "type": "object"
+    },
+    "ContainerCommandSpec": {
+      "additionalProperties": false,
+      "description": "One repository-owned command executed inside a Compose service.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "service": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "title": "Service",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "exclusiveMinimum": 0,
+          "maximum": 86400,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "working_directory": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Directory"
+        }
+      },
+      "required": [
+        "service",
+        "argv"
+      ],
+      "title": "ContainerCommandSpec",
+      "type": "object"
+    },
     "Criterion": {
       "additionalProperties": false,
       "properties": {
+        "acceptance_operator": {
+          "default": "lte",
+          "enum": [
+            "lt",
+            "lte",
+            "eq",
+            "gte",
+            "gt"
+          ],
+          "title": "Acceptance Operator",
+          "type": "string"
+        },
+        "aggregation": {
+          "default": "mean",
+          "enum": [
+            "mean",
+            "p50",
+            "p95",
+            "p99",
+            "sum",
+            "rate",
+            "maximum",
+            "verdict"
+          ],
+          "title": "Aggregation",
+          "type": "string"
+        },
         "criterion_id": {
           "minLength": 1,
           "title": "Criterion Id",
@@ -70,8 +195,20 @@
           "title": "Metric Id",
           "type": "string"
         },
+        "metric_schema_version": {
+          "default": "1.0",
+          "minLength": 1,
+          "title": "Metric Schema Version",
+          "type": "string"
+        },
         "target": {
           "title": "Target",
+          "type": "number"
+        },
+        "tolerance": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Tolerance",
           "type": "number"
         },
         "unit": {
@@ -96,6 +233,52 @@
       "title": "Criterion",
       "type": "object"
     },
+    "EvaluationSpec": {
+      "additionalProperties": false,
+      "description": "Repeatable evaluator and the metric names it promises to emit.",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/ContainerCommandSpec"
+        },
+        "evaluation_id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "title": "Evaluation Id",
+          "type": "string"
+        },
+        "expected_metric_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Expected Metric Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "repetitions": {
+          "default": 1,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "warmup_runs": {
+          "default": 0,
+          "maximum": 50,
+          "minimum": 0,
+          "title": "Warmup Runs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evaluation_id",
+        "command",
+        "expected_metric_ids"
+      ],
+      "title": "EvaluationSpec",
+      "type": "object"
+    },
     "EvidenceRequirement": {
       "additionalProperties": false,
       "properties": {
@@ -108,19 +291,89 @@
           "type": "array",
           "uniqueItems": true
         },
+        "aggregation": {
+          "default": "mean",
+          "enum": [
+            "mean",
+            "p50",
+            "p95",
+            "p99",
+            "sum",
+            "rate",
+            "maximum",
+            "verdict"
+          ],
+          "title": "Aggregation",
+          "type": "string"
+        },
+        "canonical_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canonical Unit"
+        },
         "criterion_id": {
           "title": "Criterion Id",
           "type": "string"
+        },
+        "freshness_seconds": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Freshness Seconds"
         },
         "mandatory": {
           "default": true,
           "title": "Mandatory",
           "type": "boolean"
         },
+        "metric_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric Id"
+        },
         "minimum_samples": {
           "minimum": 1,
           "title": "Minimum Samples",
           "type": "integer"
+        },
+        "minimum_trust_level": {
+          "default": "verified",
+          "enum": [
+            "unverified",
+            "verified",
+            "attested"
+          ],
+          "title": "Minimum Trust Level",
+          "type": "string"
+        },
+        "required_dimensions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Dimensions",
+          "type": "array",
+          "uniqueItems": true
         },
         "requirement_id": {
           "minLength": 1,
@@ -153,9 +406,23 @@
           "title": "Deadline Seconds",
           "type": "integer"
         },
+        "maximum_concurrency": {
+          "default": 1,
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Maximum Concurrency",
+          "type": "integer"
+        },
         "maximum_model_tokens": {
           "minimum": 0,
           "title": "Maximum Model Tokens",
+          "type": "integer"
+        },
+        "maximum_retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Maximum Retries",
           "type": "integer"
         },
         "maximum_storage_bytes": {
@@ -167,6 +434,16 @@
           "minimum": 0,
           "title": "Maximum Worker Seconds",
           "type": "integer"
+        },
+        "priority": {
+          "default": "normal",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "title": "Priority",
+          "type": "string"
         }
       },
       "required": [
@@ -178,17 +455,165 @@
       "title": "ExecutionBudget",
       "type": "object"
     },
+    "FeatureScope": {
+      "additionalProperties": false,
+      "properties": {
+        "alternative_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Alternative Paths",
+          "type": "array"
+        },
+        "artifact_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_type": {
+          "const": "FeatureScope",
+          "default": "FeatureScope",
+          "title": "Artifact Type",
+          "type": "string"
+        },
+        "case_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "content_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "exclude_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Paths",
+          "type": "array"
+        },
+        "extensions": {
+          "additionalProperties": true,
+          "title": "Extensions",
+          "type": "object"
+        },
+        "feature_id": {
+          "minLength": 1,
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "include_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Include Paths",
+          "type": "array"
+        },
+        "parent_digests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parent Digests",
+          "type": "array"
+        },
+        "policy_versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Policy Versions",
+          "type": "object"
+        },
+        "producer": {
+          "$ref": "#/$defs/ProducerIdentity"
+        },
+        "rationale": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "supporting_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Supporting Paths",
+          "type": "array"
+        },
+        "tenant_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Tenant Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "tenant_id",
+        "case_id",
+        "created_at",
+        "producer",
+        "content_digest",
+        "feature_id",
+        "confidence",
+        "rationale"
+      ],
+      "title": "FeatureScope",
+      "type": "object"
+    },
     "Guardrail": {
       "additionalProperties": false,
       "properties": {
+        "category": {
+          "default": "correctness",
+          "enum": [
+            "correctness",
+            "security",
+            "reliability",
+            "cost",
+            "quality"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
         "guardrail_id": {
           "minLength": 1,
           "title": "Guardrail Id",
           "type": "string"
         },
+        "mandatory": {
+          "default": true,
+          "title": "Mandatory",
+          "type": "boolean"
+        },
         "metric_id": {
           "minLength": 1,
           "title": "Metric Id",
+          "type": "string"
+        },
+        "metric_schema_version": {
+          "default": "1.0",
+          "minLength": 1,
+          "title": "Metric Schema Version",
           "type": "string"
         },
         "operator": {
@@ -200,6 +625,15 @@
             "gt"
           ],
           "title": "Operator",
+          "type": "string"
+        },
+        "severity": {
+          "default": "blocking",
+          "enum": [
+            "warning",
+            "blocking"
+          ],
+          "title": "Severity",
           "type": "string"
         },
         "threshold": {
@@ -291,6 +725,20 @@
           "title": "Allowed Root Id",
           "type": "string"
         },
+        "locator": {
+          "anyOf": [
+            {
+              "maxLength": 4096,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Locator"
+        },
         "relative_path": {
           "minLength": 1,
           "title": "Relative Path",
@@ -312,6 +760,12 @@
           ],
           "default": null,
           "title": "Requested Revision"
+        },
+        "source_kind": {
+          "default": "local_directory",
+          "minLength": 1,
+          "title": "Source Kind",
+          "type": "string"
         }
       },
       "required": [
@@ -347,6 +801,19 @@
           "title": "Concurrency",
           "type": "integer"
         },
+        "dataset_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Digest"
+        },
         "dataset_id": {
           "anyOf": [
             {
@@ -364,10 +831,33 @@
           "title": "Environment Id",
           "type": "string"
         },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "protocol_version": {
+          "default": "1.0",
+          "minLength": 1,
+          "title": "Protocol Version",
+          "type": "string"
+        },
         "repetitions": {
           "minimum": 1,
           "title": "Repetitions",
           "type": "integer"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
         },
         "warmup_runs": {
           "minimum": 0,
@@ -444,10 +934,32 @@
       "title": "Evidence Requirements",
       "type": "array"
     },
+    "execution": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComposeExecutionContract"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "extensions": {
       "additionalProperties": true,
       "title": "Extensions",
       "type": "object"
+    },
+    "feature_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FeatureScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "guardrails": {
       "items": {

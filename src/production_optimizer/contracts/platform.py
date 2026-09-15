@@ -17,6 +17,13 @@ class IntentStatus(StrEnum):
     FAILED = "failed"
 
 
+class DeferredModelCallStatus(StrEnum):
+    SCHEDULED = "scheduled"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class ActorContext(ContractModel):
     actor_id: str = Field(min_length=1)
     tenant_id: str = Field(min_length=1)
@@ -106,6 +113,37 @@ class ModelCompletionResult(ContractModel):
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
     stop_reason: str = Field(min_length=1)
+
+
+class ModelCallFailureRecord(ContractModel):
+    provider_name: str = Field(min_length=1)
+    model_id: str = Field(min_length=1)
+    retryable: bool
+    error_type: str = Field(min_length=1)
+    message: str
+
+
+class DeferredModelCallRecord(ContractModel):
+    tenant_id: str = Field(min_length=1)
+    deferral_id: str = Field(min_length=1)
+    case_id: str = Field(min_length=1)
+    thread_id: str | None = None
+    node_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    request_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    status: DeferredModelCallStatus
+    role: ModelRole
+    prompt_version: str = Field(min_length=1)
+    primary_model_id: str = Field(min_length=1)
+    failures: list[ModelCallFailureRecord]
+    retry_after_seconds: float = Field(ge=0)
+    available_at: datetime
+    lease_owner: str | None = None
+    lease_expires_at: datetime | None = None
+    attempts: int = Field(ge=0)
+    last_error_ref: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class TelemetryEvent(ContractModel):

@@ -3,14 +3,37 @@
     "Guardrail": {
       "additionalProperties": false,
       "properties": {
+        "category": {
+          "default": "correctness",
+          "enum": [
+            "correctness",
+            "security",
+            "reliability",
+            "cost",
+            "quality"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
         "guardrail_id": {
           "minLength": 1,
           "title": "Guardrail Id",
           "type": "string"
         },
+        "mandatory": {
+          "default": true,
+          "title": "Mandatory",
+          "type": "boolean"
+        },
         "metric_id": {
           "minLength": 1,
           "title": "Metric Id",
+          "type": "string"
+        },
+        "metric_schema_version": {
+          "default": "1.0",
+          "minLength": 1,
+          "title": "Metric Schema Version",
           "type": "string"
         },
         "operator": {
@@ -22,6 +45,15 @@
             "gt"
           ],
           "title": "Operator",
+          "type": "string"
+        },
+        "severity": {
+          "default": "blocking",
+          "enum": [
+            "warning",
+            "blocking"
+          ],
+          "title": "Severity",
           "type": "string"
         },
         "threshold": {

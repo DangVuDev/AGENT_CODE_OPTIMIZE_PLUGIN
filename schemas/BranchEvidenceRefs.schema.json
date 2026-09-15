@@ -46,6 +46,18 @@
     "EvidenceIdentity": {
       "additionalProperties": false,
       "properties": {
+        "action_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Action Id"
+        },
         "cache_state": {
           "title": "Cache State",
           "type": "string"
@@ -120,6 +132,30 @@
           "default": null,
           "title": "Prompt Version"
         },
+        "recipe_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recipe Id"
+        },
+        "recipe_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Recipe Version"
+        },
         "repository_id": {
           "title": "Repository Id",
           "type": "string"
@@ -171,6 +207,25 @@
     "EvidenceItem": {
       "additionalProperties": false,
       "properties": {
+        "criterion_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Criterion Id"
+        },
+        "dimensions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Dimensions",
+          "type": "object"
+        },
         "evidence_id": {
           "title": "Evidence Id",
           "type": "string"
@@ -181,6 +236,18 @@
         },
         "identity": {
           "$ref": "#/$defs/EvidenceIdentity"
+        },
+        "metric_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric Id"
         },
         "normalized_ref": {
           "anyOf": [
@@ -195,6 +262,24 @@
         },
         "raw_ref": {
           "$ref": "#/$defs/ArtifactRef"
+        },
+        "requirement_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requirement Id"
+        },
+        "transformation_id": {
+          "default": "identity/v1",
+          "minLength": 1,
+          "title": "Transformation Id",
+          "type": "string"
         },
         "trust_level": {
           "$ref": "#/$defs/TrustLevel"
@@ -228,6 +313,12 @@
           ],
           "default": null,
           "title": "Value"
+        },
+        "value_schema": {
+          "default": "scalar/v1",
+          "minLength": 1,
+          "title": "Value Schema",
+          "type": "string"
         }
       },
       "required": [

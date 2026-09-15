@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -23,6 +23,7 @@ class FileIdentity(ContractModel):
     relative_path: str = Field(min_length=1)
     content_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     executable: bool = False
+    raw_ref: ArtifactRef | None = None
 
 
 class SourceSnapshot(ArtifactEnvelope):
@@ -35,6 +36,11 @@ class SourceSnapshot(ArtifactEnvelope):
     files: list[FileIdentity]
     submodule_revisions: dict[str, str] = Field(default_factory=dict)
     exclusions: list[str] = Field(default_factory=list)
+    source_kind: str = Field(default="local_directory", min_length=1)
+    source_locator: str | None = None
+    archive_ref: ArtifactRef | None = None
+    captured_at: datetime | None = None
+    total_bytes: int = Field(default=0, ge=0)
 
 
 class RepositoryCommand(ContractModel):
@@ -46,9 +52,17 @@ class RepositoryCommand(ContractModel):
     # "llm_suggested" carries materially different trust: it always halts
     # for human approval before A2.50 may authorize it (see
     # `docs/adr/0002-model-provider-port.md`-style human-in-the-loop gate);
-    # "pyproject_toml"/"ci_config" are both real, detected-not-guessed
-    # commands and never require approval.
-    source: Literal["pyproject_toml", "ci_config", "llm_suggested"]
+    # "user_declared" (the requester's own `WorkloadContract.command_id`) and
+    # "pyproject_toml" are both real, requester-stated-or-detected commands
+    # and never require approval. "ci_config" (a CI job replayed via `act`)
+    # was removed: `act -l`'s job selection had no semantic understanding of
+    # which job was "the test command" -- it silently picked whichever job a
+    # workflow file happened to list first (e.g. a `build` job, not `test`),
+    # producing confidently-wrong `unit_command_result` evidence rather than
+    # an honest "unavailable". "user_declared" (this project's evidence
+    # pipeline must never fabricate a signal it cannot back) replaces it as
+    # the zero-guesswork alternative.
+    source: Literal["user_declared", "pyproject_toml", "llm_suggested"]
 
 
 class RepositoryManifest(ArtifactEnvelope):
@@ -82,6 +96,9 @@ class EvidenceIdentity(ContractModel):
     trace_id: str | None = None
     collector: str
     collector_version: str
+    action_id: str | None = None
+    recipe_id: str | None = None
+    recipe_version: str | None = None
 
 
 class EvidenceItem(ContractModel):
@@ -93,6 +110,18 @@ class EvidenceItem(ContractModel):
     normalized_ref: ArtifactRef | None = None
     value: float | str | bool | None = None
     unit: str | None = None
+    requirement_id: str | None = None
+    criterion_id: str | None = None
+    metric_id: str | None = None
+    value_schema: str = Field(default="scalar/v1", min_length=1)
+    transformation_id: str = Field(default="identity/v1", min_length=1)
+    dimensions: dict[str, str] = Field(default_factory=dict)
+
+
+class DecodedEvidenceObservation(ContractModel):
+    value: float | str | bool | None = None
+    unit: str | None = None
+    dimensions: dict[str, str] = Field(default_factory=dict)
 
 
 class MetricAggregate(ContractModel):
@@ -123,7 +152,7 @@ class EvidenceBundle(ArtifactEnvelope):
     artifact_type: Literal["EvidenceBundle"] = "EvidenceBundle"
     schema_version: Literal["1.0"] = "1.0"
     baseline_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    evidence: list[EvidenceItem] = Field(min_length=1)
+    evidence: list[EvidenceItem] = Field(default_factory=lambda: list[EvidenceItem]())
     collector_versions: dict[str, str]
     coverage: dict[str, float]
 
@@ -134,6 +163,7 @@ class EvidenceQualityReport(ArtifactEnvelope):
     passed: bool
     mandatory_coverage: dict[str, bool]
     sample_failures: list[str]
+    trust_failures: list[str] = Field(default_factory=list)
     freshness_failures: list[str]
     integrity_failures: list[str]
     redaction_failures: list[str]
@@ -190,6 +220,18 @@ class CollectorBinding(ContractModel):
     window_seconds: int = Field(gt=0)
     aggregation: str = Field(min_length=1)
     minimum_samples: int = Field(ge=1)
+    metric_id: str | None = None
+    canonical_unit: str | None = None
+    recipe_id: str = Field(default="builtin", min_length=1)
+    recipe_version: str = Field(default="1.0", min_length=1)
+    execution_node: Literal["A2.60", "A2.61", "A2.62", "A2.63", "A2.64"] = "A2.60"
+    executor_capability: str | None = None
+    decoder_id: str = Field(default="command-result/v1", min_length=1)
+    output_schema: str = Field(default="scalar/v1", min_length=1)
+    value_selector: str | None = None
+    action_parameters: dict[str, Any] = Field(default_factory=dict)
+    required_dimensions: set[str] = Field(default_factory=set)
+    mandatory: bool = True
 
 
 def _empty_bindings() -> list[CollectorBinding]:
@@ -202,6 +244,7 @@ class CollectorPlan(ArtifactEnvelope):
     bindings: list[CollectorBinding] = Field(default_factory=_empty_bindings)
     unresolved_requirements: list[str] = Field(default_factory=list)
     catalog_version: str = Field(min_length=1)
+    registry_record_versions: dict[str, int] = Field(default_factory=dict)
 
 
 class EnvironmentManifest(ArtifactEnvelope):
@@ -211,6 +254,7 @@ class EnvironmentManifest(ArtifactEnvelope):
     hardware_profile: str = Field(min_length=1)
     concurrency: int = Field(ge=1)
     cache_state: str = Field(min_length=1)
+    dimensions: dict[str, str] = Field(default_factory=dict)
 
 
 class ExecutionAuthorization(ArtifactEnvelope):
@@ -231,6 +275,9 @@ class ExecutionAuthorization(ArtifactEnvelope):
     allowed_egress: list[str] = Field(default_factory=list)
     worker_job_ids: list[str] = Field(default_factory=list)
     policy_version: str = Field(min_length=1)
+    authorized_action_ids: list[str] = Field(default_factory=list)
+    denied_action_ids: list[str] = Field(default_factory=list)
+    source_read_only: bool = True
 
 
 def _empty_evidence_items() -> list[EvidenceItem]:
@@ -261,6 +308,7 @@ class RawEvidenceFanIn(ArtifactEnvelope):
     schema_version: Literal["1.0"] = "1.0"
     branch_status: dict[str, str] = Field(default_factory=dict)
     evidence_ids: list[str] = Field(default_factory=list)
+    raw_refs: list[ArtifactRef] = Field(default_factory=lambda: list[ArtifactRef]())
 
 
 class NormalizedEvidenceSet(ArtifactEnvelope):
@@ -268,3 +316,20 @@ class NormalizedEvidenceSet(ArtifactEnvelope):
     schema_version: Literal["1.0"] = "1.0"
     evidence: list[EvidenceItem] = Field(default_factory=_empty_evidence_items)
     conversion_failures: list[str] = Field(default_factory=list)
+    transformation_versions: dict[str, str] = Field(default_factory=dict)
+
+
+class SourceAcquisitionRequest(ContractModel):
+    tenant_id: str = Field(min_length=1)
+    repository_id: str = Field(min_length=1)
+    source_kind: str = Field(min_length=1)
+    locator: str = Field(min_length=1, max_length=4096)
+    requested_revision: str | None = None
+
+
+class SourceMaterialization(ContractModel):
+    source_kind: str = Field(min_length=1)
+    locator: str = Field(min_length=1)
+    local_path: str = Field(min_length=1)
+    resolved_revision: str | None = None
+    metadata: dict[str, str] = Field(default_factory=dict)

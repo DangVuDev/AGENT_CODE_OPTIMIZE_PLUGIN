@@ -1,0 +1,146 @@
+{
+  "$defs": {
+    "ContainerCommandSpec": {
+      "additionalProperties": false,
+      "description": "One repository-owned command executed inside a Compose service.",
+      "properties": {
+        "argv": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "service": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "title": "Service",
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 300,
+          "exclusiveMinimum": 0,
+          "maximum": 86400,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        },
+        "working_directory": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Directory"
+        }
+      },
+      "required": [
+        "service",
+        "argv"
+      ],
+      "title": "ContainerCommandSpec",
+      "type": "object"
+    },
+    "EvaluationSpec": {
+      "additionalProperties": false,
+      "description": "Repeatable evaluator and the metric names it promises to emit.",
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/ContainerCommandSpec"
+        },
+        "evaluation_id": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "title": "Evaluation Id",
+          "type": "string"
+        },
+        "expected_metric_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Expected Metric Ids",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "repetitions": {
+          "default": 1,
+          "maximum": 100,
+          "minimum": 1,
+          "title": "Repetitions",
+          "type": "integer"
+        },
+        "warmup_runs": {
+          "default": 0,
+          "maximum": 50,
+          "minimum": 0,
+          "title": "Warmup Runs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "evaluation_id",
+        "command",
+        "expected_metric_ids"
+      ],
+      "title": "EvaluationSpec",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable A1-to-A2 handoff for isolated product evaluation.",
+  "properties": {
+    "application_services": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Application Services",
+      "type": "array"
+    },
+    "cleanup_timeout_seconds": {
+      "default": 60,
+      "exclusiveMinimum": 0,
+      "maximum": 600,
+      "title": "Cleanup Timeout Seconds",
+      "type": "integer"
+    },
+    "compose_file": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Compose File",
+      "type": "string"
+    },
+    "evaluations": {
+      "items": {
+        "$ref": "#/$defs/EvaluationSpec"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Evaluations",
+      "type": "array"
+    },
+    "startup_timeout_seconds": {
+      "default": 180,
+      "exclusiveMinimum": 0,
+      "maximum": 3600,
+      "title": "Startup Timeout Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "compose_file",
+    "evaluations"
+  ],
+  "title": "ComposeExecutionContract",
+  "type": "object"
+}

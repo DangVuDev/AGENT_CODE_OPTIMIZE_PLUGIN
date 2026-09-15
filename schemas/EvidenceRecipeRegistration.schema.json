@@ -1,0 +1,105 @@
+{
+  "additionalProperties": false,
+  "description": "Executable A2 recipe stored as a versioned collector registry payload.",
+  "properties": {
+    "action_parameters": {
+      "additionalProperties": true,
+      "title": "Action Parameters",
+      "type": "object"
+    },
+    "collector_id": {
+      "minLength": 1,
+      "title": "Collector Id",
+      "type": "string"
+    },
+    "decoder_id": {
+      "default": "json-selector/v1",
+      "minLength": 1,
+      "title": "Decoder Id",
+      "type": "string"
+    },
+    "execution_node": {
+      "default": "A2.60",
+      "enum": [
+        "A2.60",
+        "A2.61",
+        "A2.62",
+        "A2.63",
+        "A2.64"
+      ],
+      "title": "Execution Node",
+      "type": "string"
+    },
+    "executor_capability": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Executor Capability"
+    },
+    "output_schema": {
+      "default": "scalar/v1",
+      "minLength": 1,
+      "title": "Output Schema",
+      "type": "string"
+    },
+    "recipe_id": {
+      "minLength": 1,
+      "title": "Recipe Id",
+      "type": "string"
+    },
+    "recipe_version": {
+      "minLength": 1,
+      "title": "Recipe Version",
+      "type": "string"
+    },
+    "source_type": {
+      "minLength": 1,
+      "title": "Source Type",
+      "type": "string"
+    },
+    "supported_metric_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Supported Metric Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "value_selector": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value Selector"
+    },
+    "window_seconds": {
+      "default": 3600,
+      "exclusiveMinimum": 0,
+      "title": "Window Seconds",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "collector_id",
+    "supported_metric_ids",
+    "source_type",
+    "recipe_id",
+    "recipe_version"
+  ],
+  "title": "EvidenceRecipeRegistration",
+  "type": "object"
+}

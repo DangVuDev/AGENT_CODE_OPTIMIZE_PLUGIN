@@ -23,6 +23,19 @@
       "title": "Concurrency",
       "type": "integer"
     },
+    "dataset_digest": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dataset Digest"
+    },
     "dataset_id": {
       "anyOf": [
         {
@@ -40,10 +53,33 @@
       "title": "Environment Id",
       "type": "string"
     },
+    "parameters": {
+      "additionalProperties": true,
+      "title": "Parameters",
+      "type": "object"
+    },
+    "protocol_version": {
+      "default": "1.0",
+      "minLength": 1,
+      "title": "Protocol Version",
+      "type": "string"
+    },
     "repetitions": {
       "minimum": 1,
       "title": "Repetitions",
       "type": "integer"
+    },
+    "seed": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Seed"
     },
     "warmup_runs": {
       "minimum": 0,

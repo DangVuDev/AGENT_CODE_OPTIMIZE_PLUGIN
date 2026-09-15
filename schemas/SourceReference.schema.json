@@ -6,6 +6,20 @@
       "title": "Allowed Root Id",
       "type": "string"
     },
+    "locator": {
+      "anyOf": [
+        {
+          "maxLength": 4096,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Locator"
+    },
     "relative_path": {
       "minLength": 1,
       "title": "Relative Path",
@@ -27,6 +41,12 @@
       ],
       "default": null,
       "title": "Requested Revision"
+    },
+    "source_kind": {
+      "default": "local_directory",
+      "minLength": 1,
+      "title": "Source Kind",
+      "type": "string"
     }
   },
   "required": [

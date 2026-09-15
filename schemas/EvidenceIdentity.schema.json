@@ -1,6 +1,18 @@
 {
   "additionalProperties": false,
   "properties": {
+    "action_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Action Id"
+    },
     "cache_state": {
       "title": "Cache State",
       "type": "string"
@@ -74,6 +86,30 @@
       ],
       "default": null,
       "title": "Prompt Version"
+    },
+    "recipe_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recipe Id"
+    },
+    "recipe_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Recipe Version"
     },
     "repository_id": {
       "title": "Repository Id",

@@ -3,20 +3,110 @@
     "CollectorBinding": {
       "additionalProperties": false,
       "properties": {
+        "action_parameters": {
+          "additionalProperties": true,
+          "title": "Action Parameters",
+          "type": "object"
+        },
         "aggregation": {
           "minLength": 1,
           "title": "Aggregation",
           "type": "string"
+        },
+        "canonical_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canonical Unit"
         },
         "collector_id": {
           "minLength": 1,
           "title": "Collector Id",
           "type": "string"
         },
+        "decoder_id": {
+          "default": "command-result/v1",
+          "minLength": 1,
+          "title": "Decoder Id",
+          "type": "string"
+        },
+        "execution_node": {
+          "default": "A2.60",
+          "enum": [
+            "A2.60",
+            "A2.61",
+            "A2.62",
+            "A2.63",
+            "A2.64"
+          ],
+          "title": "Execution Node",
+          "type": "string"
+        },
+        "executor_capability": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Executor Capability"
+        },
+        "mandatory": {
+          "default": true,
+          "title": "Mandatory",
+          "type": "boolean"
+        },
+        "metric_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metric Id"
+        },
         "minimum_samples": {
           "minimum": 1,
           "title": "Minimum Samples",
           "type": "integer"
+        },
+        "output_schema": {
+          "default": "scalar/v1",
+          "minLength": 1,
+          "title": "Output Schema",
+          "type": "string"
+        },
+        "recipe_id": {
+          "default": "builtin",
+          "minLength": 1,
+          "title": "Recipe Id",
+          "type": "string"
+        },
+        "recipe_version": {
+          "default": "1.0",
+          "minLength": 1,
+          "title": "Recipe Version",
+          "type": "string"
+        },
+        "required_dimensions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Dimensions",
+          "type": "array",
+          "uniqueItems": true
         },
         "requirement_id": {
           "minLength": 1,
@@ -27,6 +117,18 @@
           "minLength": 1,
           "title": "Source Type",
           "type": "string"
+        },
+        "value_selector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value Selector"
         },
         "window_seconds": {
           "exclusiveMinimum": 0,
@@ -132,6 +234,13 @@
     },
     "producer": {
       "$ref": "#/$defs/ProducerIdentity"
+    },
+    "registry_record_versions": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Registry Record Versions",
+      "type": "object"
     },
     "schema_version": {
       "const": "1.0",

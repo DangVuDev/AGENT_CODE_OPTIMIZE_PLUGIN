@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from langgraph.graph import END, START, StateGraph
 
@@ -48,4 +48,45 @@ def build_lane_b_proposal_graph(runtime: NodeRuntime) -> Any:
     return builder.compile()
 
 
-__all__ = ["build_lane_a_graph", "build_lane_b_discovery_graph", "build_lane_b_proposal_graph"]
+LaneBRoute = Literal["discovery", "qualified"]
+
+
+def _route_lane_b_entrypoint(state: OptimizationState) -> LaneBRoute:
+    entrypoint = state.get("entrypoint")
+    if entrypoint == "discovery":
+        return "discovery"
+    if entrypoint == "qualified":
+        return "qualified"
+    raise ValueError(
+        "Lane B requires entrypoint 'discovery' or 'qualified', "
+        f"got {entrypoint!r}"
+    )
+
+
+def build_lane_b_graph(runtime: NodeRuntime) -> Any:
+    """Build the single logical Lane B with scan and case entrypoints.
+
+    Discovery scans and qualified proposal cases deliberately remain separate
+    executions. B1.96 persists an outbox handoff; its dispatcher starts a new
+    root invocation with the ``qualified`` entrypoint, which enters B2 here.
+    """
+
+    builder = StateGraph(OptimizationState)
+    builder.add_node("B1", build_lane_b_discovery_graph(runtime))
+    builder.add_node("B2_proposal", build_lane_b_proposal_graph(runtime))
+    builder.add_conditional_edges(
+        START,
+        _route_lane_b_entrypoint,
+        {"discovery": "B1", "qualified": "B2_proposal"},
+    )
+    builder.add_edge("B1", END)
+    builder.add_edge("B2_proposal", END)
+    return builder.compile()
+
+
+__all__ = [
+    "build_lane_a_graph",
+    "build_lane_b_discovery_graph",
+    "build_lane_b_graph",
+    "build_lane_b_proposal_graph",
+]

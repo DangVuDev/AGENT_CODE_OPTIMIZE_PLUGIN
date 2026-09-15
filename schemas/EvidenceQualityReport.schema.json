@@ -133,6 +133,13 @@
       "minLength": 1,
       "title": "Tenant Id",
       "type": "string"
+    },
+    "trust_failures": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Trust Failures",
+      "type": "array"
     }
   },
   "required": [

@@ -10,19 +10,89 @@
       "type": "array",
       "uniqueItems": true
     },
+    "aggregation": {
+      "default": "mean",
+      "enum": [
+        "mean",
+        "p50",
+        "p95",
+        "p99",
+        "sum",
+        "rate",
+        "maximum",
+        "verdict"
+      ],
+      "title": "Aggregation",
+      "type": "string"
+    },
+    "canonical_unit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Canonical Unit"
+    },
     "criterion_id": {
       "title": "Criterion Id",
       "type": "string"
+    },
+    "freshness_seconds": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Freshness Seconds"
     },
     "mandatory": {
       "default": true,
       "title": "Mandatory",
       "type": "boolean"
     },
+    "metric_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Metric Id"
+    },
     "minimum_samples": {
       "minimum": 1,
       "title": "Minimum Samples",
       "type": "integer"
+    },
+    "minimum_trust_level": {
+      "default": "verified",
+      "enum": [
+        "unverified",
+        "verified",
+        "attested"
+      ],
+      "title": "Minimum Trust Level",
+      "type": "string"
+    },
+    "required_dimensions": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Dimensions",
+      "type": "array",
+      "uniqueItems": true
     },
     "requirement_id": {
       "minLength": 1,

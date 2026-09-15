@@ -16,9 +16,23 @@
           "title": "Deadline Seconds",
           "type": "integer"
         },
+        "maximum_concurrency": {
+          "default": 1,
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Maximum Concurrency",
+          "type": "integer"
+        },
         "maximum_model_tokens": {
           "minimum": 0,
           "title": "Maximum Model Tokens",
+          "type": "integer"
+        },
+        "maximum_retries": {
+          "default": 1,
+          "maximum": 10,
+          "minimum": 0,
+          "title": "Maximum Retries",
           "type": "integer"
         },
         "maximum_storage_bytes": {
@@ -30,6 +44,16 @@
           "minimum": 0,
           "title": "Maximum Worker Seconds",
           "type": "integer"
+        },
+        "priority": {
+          "default": "normal",
+          "enum": [
+            "low",
+            "normal",
+            "high"
+          ],
+          "title": "Priority",
+          "type": "string"
         }
       },
       "required": [
