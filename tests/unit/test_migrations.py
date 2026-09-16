@@ -15,7 +15,6 @@ from production_optimizer.adapters.production.migrations import (
 def test_migration_version_parses_numeric_prefix() -> None:
     assert migration_version("001_control_plane.sql") == 1
     assert migration_version("002_node_intents_artifact_ref.sql") == 2
-    assert migration_version("003_model_call_deferrals.sql") == 3
     assert migration_version("123_future_change.sql") == 123
 
 

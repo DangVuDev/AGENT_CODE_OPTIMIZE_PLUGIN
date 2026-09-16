@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import operator as operator_module
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -87,6 +88,14 @@ _LOOP_BODY_NODES = frozenset(
     {"A3.60", "A3.61", "A3.62", "A3.63", "A3.64", "A3.70", "A3.80", "A3.81", "A3.82"}
 )
 _EXTERNAL_JOB_NODES = frozenset({"A3.40", "A3.50", "A3.60"})
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationCommandCandidate:
+    command_id: str
+    command_display: str
+    source: Literal["compose_evaluation", "repository_command"]
+    metric_ids: tuple[str, ...]
 
 
 def _model_id(ports: NodePorts) -> str:
@@ -265,6 +274,7 @@ _FINDING_DRAFT_SCHEMA: dict[str, Any] = {
 def _build_finding_context(
     prioritized: PrioritizedSignalSet,
     catalog: EvidenceCatalog,
+    bundle: EvidenceBundle,
     branches: list[AnalyzerObservationBranch],
 ) -> str:
     lines = ["Prioritized problem signals:"]
@@ -274,6 +284,9 @@ def _build_finding_context(
             f"- {signal.signal_id} (score={score}): {signal.description} "
             f"[metric={signal.metric_id} baseline={signal.baseline_value} "
             f"target={signal.target_value}]"
+        )
+        lines.append(
+            "  Signal-supporting evidence IDs: " + ", ".join(signal.evidence_ids)
         )
     lines.append("\nAnalyzer observations:")
     for branch in branches:
@@ -285,13 +298,33 @@ def _build_finding_context(
                 f"- [{branch.source}] {observation.description} "
                 f"(files={observation.files}, symbols={observation.symbols})"
             )
+    lines.append("\nEvidence observations:")
+    for item in bundle.evidence:
+        support_hint = "supports_nonzero_claim=yes" if _evidence_supports_claim(item) else (
+            "supports_nonzero_claim=no"
+        )
+        lines.append(
+            f"- {item.evidence_id}: metric_id={item.metric_id} "
+            f"evidence_type={item.evidence_type} value={item.value} unit={item.unit} "
+            f"requirement_id={item.requirement_id} {support_hint}"
+        )
     known_ids = sorted(entry.evidence_id for entry in catalog.entries)
     lines.append("\nAvailable evidence IDs (cite only these): " + ", ".join(known_ids))
     return "\n".join(lines)
 
 
+def _evidence_supports_claim(item: Any) -> bool:
+    value = getattr(item, "value", None)
+    return isinstance(value, int | float) and not isinstance(value, bool) and value != 0
+
+
 def _generate_finding_drafts(
-    ports: NodePorts, state: OptimizationState, context: str
+    ports: NodePorts,
+    state: OptimizationState,
+    context: str,
+    *,
+    known_evidence_ids: set[str] | None = None,
+    support_evidence_ids: set[str] | None = None,
 ) -> tuple[list[FindingDraft], list[str], int]:
     assert ports.model is not None
     case_id = _required_state_str(state, "case_id")
@@ -344,14 +377,92 @@ def _generate_finding_drafts(
             tokens,
         )
 
+    drafts, failures = _parse_finding_drafts(result.parsed_json)
+    citation_failures = _invalid_finding_citations(
+        drafts,
+        known_evidence_ids=known_evidence_ids,
+        support_evidence_ids=support_evidence_ids,
+    )
+    if citation_failures:
+        allowed = ", ".join(sorted(known_evidence_ids or set()))
+        supporting = ", ".join(sorted(support_evidence_ids or set()))
+        repair = request.model_copy(
+            update={
+                "messages": [
+                    *request.messages,
+                    ModelMessage(
+                        role="user",
+                        content=(
+                            "Your previous reply cited evidence IDs that are either outside the "
+                            "allowed catalog or do not support the claim. Repair only the "
+                            "citations and any claims that depended on them. "
+                            f"Invalid citations: {'; '.join(citation_failures)}. "
+                            f"Allowed evidence IDs: {allowed}. Evidence IDs that can support "
+                            f"breach/violation claims: {supporting}. Neutral/pass evidence may "
+                            "appear only in counterevidence_ids. Reply with only valid JSON "
+                            "matching the schema."
+                        ),
+                    ),
+                ],
+                "idempotency_key": f"{request.idempotency_key}:repair-citations-1",
+            }
+        )
+        repaired = ports.model.complete(repair)
+        tokens += repaired.input_tokens + repaired.output_tokens
+        if repaired.valid_json and repaired.parsed_json is not None:
+            drafts, failures = _parse_finding_drafts(repaired.parsed_json)
+            citation_failures = _invalid_finding_citations(
+                drafts,
+                known_evidence_ids=known_evidence_ids,
+                support_evidence_ids=support_evidence_ids,
+            )
+
+    failures.extend(citation_failures)
+    return drafts, failures, tokens
+
+
+def _parse_finding_drafts(raw_json: dict[str, Any]) -> tuple[list[FindingDraft], list[str]]:
     drafts: list[FindingDraft] = []
     failures: list[str] = []
-    for raw in result.parsed_json.get("findings", []):
+    for raw in raw_json.get("findings", []):
         try:
             drafts.append(FindingDraft.model_validate(raw))
         except ValidationError as exc:
             failures.append(f"{raw.get('finding_id', '<unknown>')}: {exc}")
-    return drafts, failures, tokens
+    return drafts, failures
+
+
+def _invalid_finding_citations(
+    drafts: list[FindingDraft],
+    *,
+    known_evidence_ids: set[str] | None,
+    support_evidence_ids: set[str] | None,
+) -> list[str]:
+    if known_evidence_ids is None:
+        return []
+    failures: list[str] = []
+    for draft in drafts:
+        unknown = [
+            evidence_id
+            for evidence_id in draft.supporting_evidence_ids
+            if evidence_id not in known_evidence_ids
+        ]
+        if unknown:
+            failures.append(
+                f"{draft.finding_id}: unknown supporting_evidence_ids={sorted(unknown)}"
+            )
+        if support_evidence_ids is not None:
+            unsupported = [
+                evidence_id
+                for evidence_id in draft.supporting_evidence_ids
+                if evidence_id in known_evidence_ids and evidence_id not in support_evidence_ids
+            ]
+            if unsupported:
+                failures.append(
+                    f"{draft.finding_id}: unsupported supporting_evidence_ids="
+                    f"{sorted(unsupported)}"
+                )
+    return failures
 
 
 # ---------------------------------------------------------------------------
@@ -576,13 +687,98 @@ _STRATEGY_DRAFT_SCHEMA: dict[str, Any] = {
 }
 
 
-def _build_strategy_context(findings: list[Finding]) -> str:
+def _validation_command_candidates(
+    request: OptimizationRequest, verification: VerificationManifest
+) -> list[ValidationCommandCandidate]:
+    candidates: list[ValidationCommandCandidate] = []
+    if request.execution is not None:
+        compose_file = request.execution.compose_file
+        for evaluation in request.execution.evaluations:
+            command = evaluation.command
+            argv = " ".join(command.argv)
+            working_dir = (
+                f" --workdir {command.working_directory}" if command.working_directory else ""
+            )
+            candidates.append(
+                ValidationCommandCandidate(
+                    command_id=evaluation.evaluation_id,
+                    command_display=(
+                        f"docker compose -f {compose_file} exec{working_dir} "
+                        f"{command.service} {argv}"
+                    ),
+                    source="compose_evaluation",
+                    metric_ids=tuple(sorted(evaluation.expected_metric_ids)),
+                )
+            )
+
+    request_metric_ids = {
+        criterion.metric_id for criterion in request.criteria
+    } | {guardrail.metric_id for guardrail in request.guardrails}
+    for command in verification.commands:
+        candidates.append(
+            ValidationCommandCandidate(
+                command_id=command.command_id,
+                command_display=" ".join(command.argv),
+                source="repository_command",
+                metric_ids=tuple(sorted(request_metric_ids)),
+            )
+        )
+
+    unique: dict[str, ValidationCommandCandidate] = {}
+    for candidate in candidates:
+        unique.setdefault(candidate.command_id, candidate)
+    return list(unique.values())
+
+
+def _expected_metric_movements(request: OptimizationRequest) -> dict[str, str]:
+    movements: dict[str, str] = {}
+    for criterion in request.criteria:
+        if criterion.direction == "minimize":
+            movement = f"decrease toward <= {criterion.target} {criterion.unit}"
+        elif criterion.direction == "maximize":
+            movement = f"increase toward >= {criterion.target} {criterion.unit}"
+        else:
+            movement = f"move toward == {criterion.target} {criterion.unit}"
+        movements[criterion.metric_id] = movement
+
+    for guardrail in request.guardrails:
+        movements.setdefault(
+            guardrail.metric_id,
+            f"must remain {guardrail.operator} {guardrail.threshold} {guardrail.unit}",
+        )
+    return movements
+
+
+def _validation_benchmark_protocol(candidates: list[ValidationCommandCandidate]) -> str:
+    command_lines = [
+        f"{candidate.command_id} [{candidate.source}]: {candidate.command_display}"
+        for candidate in candidates
+    ]
+    return "rerun repository-owned validation commands via A2 worker protocol: " + "; ".join(
+        command_lines
+    )
+
+
+def _build_strategy_context(
+    findings: list[Finding],
+    validation_commands: list[ValidationCommandCandidate] | None = None,
+) -> str:
     lines = ["Findings eligible for strategy generation:"]
     for finding in findings:
         lines.append(
             f"- {finding.finding_id} ({finding.claim_type}, confidence={finding.confidence}): "
             f"{finding.causal_claim} [evidence={finding.supporting_evidence_ids}]"
         )
+    lines.append("\nAvailable repository-owned validation commands:")
+    if not validation_commands:
+        lines.append("- none")
+    else:
+        for command in validation_commands:
+            metrics = ", ".join(command.metric_ids) if command.metric_ids else "unknown"
+            lines.append(
+                f"- {command.command_id}: source={command.source}; "
+                f"metrics={metrics}; command={command.command_display}"
+            )
     return "\n".join(lines)
 
 
@@ -595,7 +791,9 @@ def _generate_strategy_drafts(
         "You are the A3 strategy generator. Propose materially different "
         "remediation strategies tied to the given findings. Hypothesis-only "
         "findings may only receive diagnostic phases, never implementation "
-        "phases. Each phase must contain exactly one logical treatment."
+        "phases. Each phase must contain exactly one logical treatment. If "
+        "validation commands are listed, design strategies so they can be "
+        "verified by those exact command IDs. Never invent validation commands."
     )
     request = ModelCompletionRequest(
         role=ModelRole.GENERATOR,

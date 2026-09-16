@@ -43,13 +43,14 @@ from typing import Any, cast
 from _lane1_common import (
     LocalScriptedModelProvider,
     build_control_plane,
+    model_selection_kwargs_from_args,
     read_model,
     ref_by_type,
     select_model_provider,
 )
 from optimize import build_payload, parse_args, seed_payload
 
-from production_optimizer.adapters.production import DeferredModelCallError
+from production_optimizer.adapters.production import report_model_provider_error
 from production_optimizer.adapters.production.local_worker_broker import LocalWorkerBroker
 from production_optimizer.application import (
     NodePorts,
@@ -249,7 +250,7 @@ def main() -> None:
     model_provider, model_id = select_model_provider(
         tenant_id=_TENANT_ID,
         thread_id=thread_id,
-        deferrals=CONTROL_PLANE.model_deferrals,
+        **model_selection_kwargs_from_args(args),
     )
     a3_ports = NodePorts(
         artifacts=store, intents=CONTROL_PLANE.intents, policy=CONTROL_PLANE.policy,
@@ -328,6 +329,20 @@ def main() -> None:
         for result in quality.results:
             marker = "OK" if result.passed else "FAIL"
             print(f"  [{marker}] {result.dimension}: {result.detail or ''}")
+        draft = cast("dict[str, Any]", state.get("s02_plan_draft") or {})
+        path_repairs = [str(item) for item in cast("list[Any]", draft.get("path_repairs") or [])]
+        if path_repairs:
+            print("  Path repairs:")
+            for repair in path_repairs:
+                print(f"    - {repair}")
+        critique = cast("dict[str, Any]", state.get("s02_critique") or {})
+        ignored_ungrounded = [
+            str(item) for item in cast("list[Any]", critique.get("ignored_ungrounded") or [])
+        ]
+        if ignored_ungrounded:
+            print("  Ignored ungrounded critic concerns:")
+            for concern in ignored_ungrounded:
+                print(f"    - {concern}")
         print()
 
     plan_ref = ref_by_type(state, "ExecutionPlan")
@@ -338,29 +353,35 @@ def main() -> None:
             "(S02.81) never seals ExecutionPlan/TaskList unless every dimension "
             "passes, even after the one bounded redraft."
         )
-        draft = state.get("s02_plan_draft") or {}
-        critique = state.get("s02_critique") or {}
-        draft_phases = draft.get("phases") or []
-        draft_tasks = draft.get("tasks") or []
+        draft = cast("dict[str, Any]", state.get("s02_plan_draft") or {})
+        critique = cast("dict[str, Any]", state.get("s02_critique") or {})
+        draft_phases = cast("list[Any]", draft.get("phases") or [])
+        draft_tasks = cast("list[Any]", draft.get("tasks") or [])
         if draft_phases or draft_tasks:
             print(
                 f"\nLast REJECTED draft (never sealed, shown for visibility only -- "
                 f"{len(draft_phases)} phase(s), {len(draft_tasks)} task(s)):"
             )
             for phase in draft_phases:
-                print(f"  Phase {phase.sequence} [{phase.phase_id}] ({phase.phase_kind})")
+                print(
+                    f"  Phase {phase.sequence} [{phase.phase_id}] "
+                    f"({phase.phase_kind}, risk={phase.risk_tier})"
+                )
                 print(
                     f"    treatment: {phase.treatment.variable}: "
                     f"{phase.treatment.before!r} -> {phase.treatment.after!r}"
                 )
                 print(f"    done_criteria: {phase.done_criteria}")
+                print(f"    affected_criteria: {phase.affected_criteria}")
+                print(f"    validation_command_ids: {phase.validation_command_ids}")
             for task in draft_tasks:
                 print(f"  [{task.status}] {task.task_id} (phase={task.phase_id})")
                 print(f"    objective: {task.objective}")
                 if task.files:
                     print(f"    files: {task.files}")
-            if critique.get("concerns"):
-                print(f"\nCritic concerns: {critique['concerns']}")
+            concerns = [str(item) for item in cast("list[Any]", critique.get("concerns") or [])]
+            if concerns:
+                print(f"\nCritic concerns: {concerns}")
         return
 
     plan = read_model(store, _TENANT_ID, plan_ref, ExecutionPlan)
@@ -368,12 +389,17 @@ def main() -> None:
 
     print(f"ExecutionPlan: {len(plan.phases)} phase(s)")
     for phase in plan.phases:
-        print(f"  Phase {phase.sequence} [{phase.phase_id}] ({phase.phase_kind})")
+        print(
+            f"  Phase {phase.sequence} [{phase.phase_id}] "
+            f"({phase.phase_kind}, risk={phase.risk_tier})"
+        )
         print(
             f"    treatment: {phase.treatment.variable}: "
             f"{phase.treatment.before!r} -> {phase.treatment.after!r}"
         )
         print(f"    done_criteria: {phase.done_criteria}")
+        print(f"    affected_criteria: {phase.affected_criteria}")
+        print(f"    validation_command_ids: {phase.validation_command_ids}")
         print(
             f"    rollback_trigger: {phase.rollback_trigger} "
             f"(deadline {phase.rollback_deadline_seconds}s)"
@@ -403,13 +429,9 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except DeferredModelCallError as error:
-        print(f"\n[DEFERRED] {error}")
-        if error.deferral_id is not None:
-            print(f"Deferred model call persisted: {error.deferral_id}")
-        print(
-            "All approved model providers are temporarily unavailable. Nothing was "
-            "corrupted; this local run is in-memory, so re-run the same command after "
-            "the retry window or configure another approved provider."
-        )
-        raise SystemExit(75) from None
+    except Exception as error:
+        # See `optimize.py`/`optimize_and_apply.py`: `ports.model.complete()`
+        # calls are bare on purpose, so `report_model_provider_error` is the
+        # one place that turns a deferred/permanent/bare-retryable model
+        # failure into a clean message + exit code; anything else re-raises.
+        raise SystemExit(report_model_provider_error(error)) from None

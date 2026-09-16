@@ -6,7 +6,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from production_optimizer.adapters.production.anthropic_model_provider import AnthropicModelProvider
+from production_optimizer.adapters.production.generic_model_provider import GenericModelProvider
 from production_optimizer.contracts.platform import ModelCompletionRequest, ModelMessage, ModelRole
 
 
@@ -27,7 +27,7 @@ class _EnvSecretsBroker:
 
     A real production `SecretsBroker` (Vault, AWS Secrets Manager, ...)
     would resolve `secret_ref` against a real secret store; this test only
-    needs to prove `AnthropicModelProvider` genuinely goes through the
+    needs to prove `GenericModelProvider(provider="anthropic")` genuinely goes through the
     `SecretsBroker.lease` contract (ADR-0002) rather than reading
     `ANTHROPIC_API_KEY` itself.
     """
@@ -43,7 +43,7 @@ class _EnvSecretsBroker:
         yield self._api_key
 
 
-def test_anthropic_model_provider_completes_a_real_request() -> None:
+def test_generic_anthropic_model_provider_completes_a_real_request() -> None:
     """One real, billed API call — never part of the default `pytest -q` run.
 
     Skips outright unless `ANTHROPIC_API_KEY` is set (and the `anthropic`
@@ -52,7 +52,8 @@ def test_anthropic_model_provider_completes_a_real_request() -> None:
     """
 
     api_key = _require_api_key()
-    provider = AnthropicModelProvider(
+    provider = GenericModelProvider(
+        provider="anthropic",
         secrets=_EnvSecretsBroker(api_key), tenant_id="TENANT-SMOKE", secret_ref="anthropic-api-key"
     )
 

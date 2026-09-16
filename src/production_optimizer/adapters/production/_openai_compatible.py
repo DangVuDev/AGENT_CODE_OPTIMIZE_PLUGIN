@@ -1,10 +1,8 @@
-"""Shared call logic for OpenAI Chat Completions-API-compatible adapters.
+"""Shared call logic for OpenAI Chat Completions-API-compatible backends.
 
-Not a public adapter itself — `OpenAIModelProvider`, `DeepSeekModelProvider`
-and `OllamaModelProvider` are deliberately separate public classes (each
-vendor's auth/base-url story differs enough to warrant its own type), but
-all three send the exact same request shape once a client exists, so that
-one piece is factored here instead of copy-pasted three times.
+Not a public adapter itself. `GenericModelProvider` uses this helper for
+OpenAI, DeepSeek, Ollama, and other self-hosted OpenAI-compatible runtimes
+after it has resolved provider-specific auth/base-url configuration.
 """
 
 from __future__ import annotations

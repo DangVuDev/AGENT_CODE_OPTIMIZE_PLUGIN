@@ -4,11 +4,6 @@ from .a3_handlers import build_a3_registrations, build_a3_runtime
 from .b1_handlers import build_b1_registrations, build_b1_runtime
 from .b2_handlers import build_b2_registrations, build_b2_runtime
 from .c0_handlers import build_c0_registrations, build_c0_runtime
-from .model_deferral_scheduler import (
-    ModelDeferralRunResult,
-    ModelDeferralScheduler,
-    ModelDeferralSchedulerError,
-)
 from .node_contract import NodeSpec, SideEffectClass
 from .node_runtime import (
     BusinessNodeHandler,
@@ -33,9 +28,6 @@ __all__ = [
     "A2_BLOCKED_NODES",
     "BusinessNodeHandler",
     "InvalidNodeExecutionError",
-    "ModelDeferralRunResult",
-    "ModelDeferralScheduler",
-    "ModelDeferralSchedulerError",
     "NodeExecution",
     "NodeNotEnabledError",
     "NodePorts",

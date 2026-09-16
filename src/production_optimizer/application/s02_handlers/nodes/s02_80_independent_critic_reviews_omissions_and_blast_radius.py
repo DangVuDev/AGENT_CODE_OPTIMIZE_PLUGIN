@@ -13,6 +13,7 @@ from production_optimizer.contracts.state import OptimizationState
 from ..shared import (
     _CRITIQUE_SCHEMA,
     _PROMPT_VERSION,
+    _grounded_critique,
     _model_id,
     _one_repair_complete,
     _required_state_str,
@@ -27,10 +28,15 @@ def handle_s02_80_independent_critic_reviews_omissions_and_blast_radius(
     draft = cast("dict[str, Any]", state.get("s02_plan_draft") or {})
     phases = cast("list[ExecutionPhase]", draft.get("phases") or [])
     tasks = cast("list[PlanTask]", draft.get("tasks") or [])
+    coverage = cast("dict[str, bool]", draft.get("acceptance_coverage") or {})
+    rollback_reasons = cast("list[str]", draft.get("rollback_reasons") or [])
 
     context_lines = ["Phases:"]
     context_lines.extend(
-        f"- {phase.phase_id}: {phase.treatment.variable} done_criteria={phase.done_criteria}"
+        f"- {phase.phase_id}: kind={phase.phase_kind} risk_tier={phase.risk_tier} "
+        f"treatment={phase.treatment.variable} affected_criteria={phase.affected_criteria} "
+        f"validation_command_ids={phase.validation_command_ids} "
+        f"done_criteria={phase.done_criteria} rollback={phase.rollback_command}"
         for phase in phases
     )
     context_lines.append("Tasks:")
@@ -44,8 +50,12 @@ def handle_s02_80_independent_critic_reviews_omissions_and_blast_radius(
         "You are an independent critic reviewing an implementation plan for "
         "omissions, unstated assumptions and blast-radius concerns. You did "
         "not draft this plan and must not approve it uncritically -- flag "
-        "real gaps. Set approved=false if any phase lacks a clear done "
-        "criterion or the blast radius looks understated."
+        "real gaps. A blocking omission/concern must cite concrete plan "
+        "anchors: a phase_id, task_id, exact file path, criterion id, done "
+        "criterion, dependency, or rollback issue present in the supplied "
+        "plan. Do not speculate about database, concurrency, caching, or "
+        "architecture risk unless the plan text or file paths directly show "
+        "that risk. Set approved=false only for grounded blocking issues."
     )
     request = ModelCompletionRequest(
         role=ModelRole.JUDGE,
@@ -61,11 +71,18 @@ def handle_s02_80_independent_critic_reviews_omissions_and_blast_radius(
     )
     parsed, _tokens = _one_repair_complete(ports, request)
     critique = (
-        parsed
+        _grounded_critique(
+            parsed,
+            phases=phases,
+            tasks=tasks,
+            coverage=coverage,
+            rollback_reasons=rollback_reasons,
+        )
         if parsed is not None
         else {
             "omissions": [],
             "concerns": ["critic did not produce schema-valid output"],
+            "ignored_ungrounded": [],
             "approved": False,
         }
     )

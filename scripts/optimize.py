@@ -54,19 +54,22 @@ MUST print exactly one JSON object shaped like `EvaluationOutput`
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from _lane1_common import (
+    add_model_runtime_args,
     build_control_plane,
+    model_selection_kwargs_from_args,
     read_model,
     ref_by_type,
     select_model_provider,
 )
 
-from production_optimizer.adapters.production import DeferredModelCallError
+from production_optimizer.adapters.production import report_model_provider_error
 from production_optimizer.adapters.production.local_worker_broker import LocalWorkerBroker
 from production_optimizer.application import (
     NodePorts,
@@ -78,19 +81,26 @@ from production_optimizer.application import (
 from production_optimizer.application.a2_worker_capabilities import (
     build_local_command_capabilities,
 )
+from production_optimizer.application.resume import resume_case
 from production_optimizer.contracts.a1 import ManualCasePayload
 from production_optimizer.contracts.a2 import BaselineSnapshot, EvidenceQualityReport
 from production_optimizer.contracts.a3 import (
     A3QualityReport,
+    CitationResolutionReportSet,
+    FindingDraftSet,
+    FindingJudgementSet,
     FindingSet,
     ProblemSignalSet,
+    RevisionDirective,
     SolutionPortfolio,
 )
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.c0 import ConvergedCase, ConvergenceDecision
 from production_optimizer.contracts.canonical import canonical_json, sha256_digest
+from production_optimizer.contracts.commands import ResumeInterruptCommand
 from production_optimizer.contracts.evaluation import ContainerCommandSpec, EvaluationSpec
 from production_optimizer.contracts.platform import ActorContext
+from production_optimizer.contracts.state import OptimizationState
 from production_optimizer.orchestration.subgraphs import (
     build_a1_graph,
     build_a2_graph,
@@ -111,7 +121,6 @@ def print_control_plane() -> None:
     print(f"[control-plane] {state}")
     for note in CONTROL_PLANE.notes:
         print(f"[control-plane]   {note}")
-
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -172,6 +181,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     parser.add_argument("--deadline-seconds", type=int, default=None, help="Default: 300s.")
+    parser.add_argument(
+        "--trace-node-outputs",
+        action="store_true",
+        help=(
+            "Print each LangGraph business node's checkpoint output as JSON as it runs. "
+            "Equivalent to setting OPTIMIZER_TRACE_NODE_OUTPUTS=1."
+        ),
+    )
+    add_model_runtime_args(parser)
 
     compose = parser.add_argument_group(
         "docker_compose execution profile",
@@ -255,9 +273,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             if not value
         ]
         if missing:
-            parser.error(
-                "--execution-profile docker_compose also requires: " + ", ".join(missing)
-            )
+            parser.error("--execution-profile docker_compose also requires: " + ", ".join(missing))
     return args
 
 
@@ -278,9 +294,7 @@ def build_payload(args: argparse.Namespace) -> ManualCasePayload:
                 working_directory=args.eval_working_dir,
                 timeout_seconds=args.eval_timeout,
             ),
-            **(
-                {"repetitions": args.eval_repetitions} if args.eval_repetitions is not None else {}
-            ),
+            **({"repetitions": args.eval_repetitions} if args.eval_repetitions is not None else {}),
             **({"warmup_runs": args.eval_warmup} if args.eval_warmup is not None else {}),
             expected_metric_ids=eval_metrics,
         )
@@ -334,8 +348,110 @@ def seed_payload(store: Any, case_id: str, payload: ManualCasePayload) -> Artifa
     )
 
 
+def _auto_resume_until_terminal(
+    graph: Any, state: dict[str, Any], *, actor_id: str, thread_id: str, case_id: str
+) -> dict[str, Any]:
+    """Drive a compiled graph to a real terminal state, auto-approving every
+    real human-in-the-loop halt as this CLI's own owner (mirrors
+    `optimize_and_apply.py`'s copy of this helper) -- the one decision an
+    unattended CLI run can make on its own owner's behalf, instead of
+    prompting a human. Used for A2.31's LLM-suggested command approval when
+    no repository convention (pyproject.toml, etc.) was detected."""
+
+    attempt = 0
+    while state.get("pending_interrupt") is not None:
+        attempt += 1
+        interrupt = state["pending_interrupt"]
+        decision = "approve" if "approve" in interrupt.allowed_decisions else (
+            interrupt.allowed_decisions[0]
+        )
+        print(
+            f"  [auto-resume #{attempt}] {interrupt.stage} halted for "
+            f"{interrupt.allowed_decisions} -- auto-deciding {decision!r} as this CLI's owner"
+        )
+        now = datetime.now(UTC)
+        command = ResumeInterruptCommand(
+            command_id=f"{case_id}-resume-{attempt}",
+            tenant_id=_TENANT_ID,
+            case_id=case_id,
+            thread_id=thread_id,
+            interrupt_id=interrupt.interrupt_id,
+            actor_id=actor_id,
+            actor_roles={interrupt.required_actor_role},
+            decision=decision,
+            artifact_digest=interrupt.artifact_digest,
+            policy_version=interrupt.policy_version,
+            issued_at=now,
+        )
+        actor = ActorContext(
+            actor_id=actor_id,
+            tenant_id=_TENANT_ID,
+            roles={interrupt.required_actor_role},
+            authenticated_at=now,
+        )
+        state = resume_case(
+            graph=graph,
+            state=cast("OptimizationState", state),
+            command=command,
+            actor=actor,
+            now=now,
+        )
+    return state
+
+
+def print_a3_finding_rejection_diagnostics(store: Any, state: dict[str, Any]) -> None:
+    if state.get("node_routes", {}).get("A3.51") != "rejected":
+        return
+    draft_ref = ref_by_type(state, "FindingDraftSet")
+    citation_ref = ref_by_type(state, "CitationResolutionReportSet")
+    judgement_ref = ref_by_type(state, "FindingJudgementSet")
+    if draft_ref is None:
+        return
+
+    print("A3 finding gate rejected before FindingSet:")
+    drafts = read_model(store, _TENANT_ID, draft_ref, FindingDraftSet)
+    if drafts.generation_failures:
+        for failure in drafts.generation_failures:
+            print(f"  - generation failure: {failure}")
+    citations = (
+        read_model(store, _TENANT_ID, citation_ref, CitationResolutionReportSet)
+        if citation_ref is not None
+        else None
+    )
+    judgements = (
+        read_model(store, _TENANT_ID, judgement_ref, FindingJudgementSet)
+        if judgement_ref is not None
+        else None
+    )
+    citations_by_finding = {r.finding_id: r for r in citations.reports} if citations else {}
+    judgement_by_finding = {j.finding_id: j for j in judgements.judgements} if judgements else {}
+    for draft in drafts.drafts:
+        print(f"  - draft {draft.finding_id}: evidence={draft.supporting_evidence_ids}")
+        citation = citations_by_finding.get(draft.finding_id)
+        if citation is None:
+            print("      citation: missing")
+        else:
+            print(f"      citation: all_resolved={citation.all_resolved}")
+            for entry in citation.entries:
+                if not (entry.resolved and entry.in_scope and entry.supports_statement):
+                    print(
+                        "        "
+                        f"{entry.evidence_id}: resolved={entry.resolved} "
+                        f"in_scope={entry.in_scope} supports={entry.supports_statement} "
+                        f"reason={entry.reason}"
+                    )
+        judgement = judgement_by_finding.get(draft.finding_id)
+        if judgement is None:
+            print("      judge: missing or invalid model response")
+        else:
+            print(f"      judge: {judgement.verdict} ({'; '.join(judgement.reasons)})")
+    print()
+
+
 def main() -> None:
     args = parse_args(sys.argv[1:])
+    if args.trace_node_outputs:
+        os.environ["OPTIMIZER_TRACE_NODE_OUTPUTS"] = "1"
     repo_path = args.repo_path.resolve()
     if not repo_path.exists():
         raise SystemExit(f"repo path does not exist: {repo_path}")
@@ -353,7 +469,8 @@ def main() -> None:
 
     print("=== A1: parsing intent into a sealed OptimizationRequest ===")
     a1_ports = NodePorts(
-        artifacts=store, intents=CONTROL_PLANE.intents,
+        artifacts=store,
+        intents=CONTROL_PLANE.intents,
         telemetry=CONTROL_PLANE.telemetry,
         policy=CONTROL_PLANE.policy,
     )
@@ -390,15 +507,31 @@ def main() -> None:
     print()
 
     print("=== A2: collecting real evidence (pytest/ruff via LocalWorkerBroker) ===")
+    model_provider, model_id = select_model_provider(
+        tenant_id=_TENANT_ID,
+        thread_id=thread_id,
+        **model_selection_kwargs_from_args(args),
+    )
     broker = LocalWorkerBroker(
         capabilities=build_local_command_capabilities(store, tenant_id=_TENANT_ID)
     )
     try:
         a2_ports = NodePorts(
-            artifacts=store, intents=CONTROL_PLANE.intents, policy=CONTROL_PLANE.policy,
-            telemetry=CONTROL_PLANE.telemetry, workers=broker
+            artifacts=store,
+            intents=CONTROL_PLANE.intents,
+            policy=CONTROL_PLANE.policy,
+            telemetry=CONTROL_PLANE.telemetry,
+            workers=broker,
+            model=model_provider,
+            model_id=model_id,
         )
-        state = build_a2_graph(build_a2_runtime(ports=a2_ports)).invoke(state)
+        a2_graph = build_a2_graph(
+            build_a2_runtime(ports=a2_ports), checkpointer=CONTROL_PLANE.checkpointer
+        )
+        state = a2_graph.invoke(state, config={"configurable": {"thread_id": thread_id}})
+        state = _auto_resume_until_terminal(
+            a2_graph, state, actor_id=args.actor_id, thread_id=thread_id, case_id=args.case_id
+        )
     finally:
         broker.close()
 
@@ -435,11 +568,6 @@ def main() -> None:
     print()
 
     print("=== A3: analyzing evidence and proposing strategies ===")
-    model_provider, model_id = select_model_provider(
-        tenant_id=_TENANT_ID,
-        thread_id=thread_id,
-        deferrals=CONTROL_PLANE.model_deferrals,
-    )
     a3_ports = NodePorts(
         artifacts=store,
         intents=CONTROL_PLANE.intents,
@@ -448,7 +576,8 @@ def main() -> None:
         model_id=model_id,
     )
     state = build_a3_graph(
-        build_a3_runtime(ports=a3_ports), checkpointer=CONTROL_PLANE.checkpointer
+        build_a3_runtime(ports=a3_ports),
+        checkpointer=CONTROL_PLANE.checkpointer,
     ).invoke(state, config={"configurable": {"thread_id": thread_id}})
     a3_routes = {k: v for k, v in state.get("node_routes", {}).items() if k.startswith("A3")}
     print(f"node_routes (A3): {a3_routes}")
@@ -473,11 +602,25 @@ def main() -> None:
                 f"{finding.causal_claim}"
             )
         print()
+    else:
+        print_a3_finding_rejection_diagnostics(store, state)
 
     quality_ref = ref_by_type(state, "A3QualityReport")
+    quality: A3QualityReport | None = None
     if quality_ref is not None:
         quality = read_model(store, _TENANT_ID, quality_ref, A3QualityReport)
         print(f"A3 quality gate passed: {quality.passed}")
+        if not quality.passed:
+            for gate_results in (
+                quality.finding_gate_results,
+                quality.strategy_gate_results,
+                quality.cause_maturity_gate_results,
+                quality.portfolio_gate_results,
+            ):
+                for gate in gate_results:
+                    if not gate.passed:
+                        detail = f": {gate.detail}" if gate.detail else ""
+                        print(f"  - [FAIL] {gate.dimension}{detail}")
         print()
 
     portfolio_ref = state.get("solution_portfolio_ref") or ref_by_type(state, "SolutionPortfolio")
@@ -490,15 +633,30 @@ def main() -> None:
             print(f"      mechanism: {strategy.mechanism}")
     else:
         print("A3 did not reach a sealed SolutionPortfolio.")
-        directive_ref = ref_by_type(state, "RevisionDirective")
-        if directive_ref is not None:
-            print("  (stopped in the revision loop -- see RevisionDirective for why)")
+        directive_refs = [
+            ref
+            for ref in state.get("artifact_refs", [])
+            if ref.artifact_type == "RevisionDirective"
+        ]
+        if directive_refs:
+            directives = [
+                read_model(store, _TENANT_ID, ref, RevisionDirective) for ref in directive_refs
+            ]
+            latest = max(directives, key=lambda directive: directive.attempt_number)
+            print(f"  (stopped in the revision loop after attempt {latest.attempt_number})")
+            print(f"  reason: {latest.reason}")
+            if latest.targeted_finding_ids:
+                print(f"  targeted_finding_ids: {latest.targeted_finding_ids}")
+            if latest.targeted_strategy_ids:
+                print(f"  targeted_strategy_ids: {latest.targeted_strategy_ids}")
         return
 
     print()
     print("=== C0: converging the case ===")
     c0_ports = NodePorts(
-        artifacts=store, intents=CONTROL_PLANE.intents, policy=CONTROL_PLANE.policy,
+        artifacts=store,
+        intents=CONTROL_PLANE.intents,
+        policy=CONTROL_PLANE.policy,
         telemetry=CONTROL_PLANE.telemetry,
     )
     state = build_c0_graph(build_c0_runtime(ports=c0_ports)).invoke(state)
@@ -523,13 +681,10 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except DeferredModelCallError as error:
-        print(f"\n[DEFERRED] {error}")
-        if error.deferral_id is not None:
-            print(f"Deferred model call persisted: {error.deferral_id}")
-        print(
-            "All approved model providers are temporarily unavailable. Nothing was "
-            "corrupted; this local run is in-memory, so re-run the same command after "
-            "the retry window or configure another approved provider."
-        )
-        raise SystemExit(75) from None
+    except Exception as error:
+        # `a3_handlers`/`a2_handlers` call `ports.model.complete()` bare, on
+        # purpose: a node must not hide a dead provider. `GenericModelProvider`
+        # already turns any SDK failure into `ModelProviderError`; this just
+        # renders it as a clean one-line explanation + exit code instead of a
+        # raw traceback. Anything else is re-raised unchanged.
+        raise SystemExit(report_model_provider_error(error)) from None

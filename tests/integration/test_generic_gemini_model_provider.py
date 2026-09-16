@@ -6,7 +6,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from production_optimizer.adapters.production.gemini_model_provider import GeminiModelProvider
+from production_optimizer.adapters.production.generic_model_provider import GenericModelProvider
 from production_optimizer.contracts.platform import ModelCompletionRequest, ModelMessage, ModelRole
 
 
@@ -25,8 +25,8 @@ def _require_api_key() -> str:
 class _EnvSecretsBroker:
     """Leases a secret straight from the environment for this one smoke test.
 
-    Mirrors `test_anthropic_model_provider.py`'s fake — proves
-    `GeminiModelProvider` genuinely goes through `SecretsBroker.lease`
+    Mirrors `test_generic_anthropic_model_provider.py`'s fake — proves
+    `GenericModelProvider(provider="gemini")` genuinely goes through `SecretsBroker.lease`
     (ADR-0002) rather than reading `GEMINI_API_KEY` itself.
     """
 
@@ -41,11 +41,12 @@ class _EnvSecretsBroker:
         yield self._api_key
 
 
-def test_gemini_model_provider_completes_a_real_request() -> None:
+def test_generic_gemini_model_provider_completes_a_real_request() -> None:
     """One real, billed Gemini API call — never part of the default `pytest -q` run."""
 
     api_key = _require_api_key()
-    provider = GeminiModelProvider(
+    provider = GenericModelProvider(
+        provider="gemini",
         secrets=_EnvSecretsBroker(api_key), tenant_id="TENANT-SMOKE", secret_ref="gemini-api-key"
     )
 

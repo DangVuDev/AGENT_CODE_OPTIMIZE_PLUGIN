@@ -304,6 +304,15 @@ def _seed_plain_repo(tmp_path: Path) -> Path:
     return repo
 
 
+def _seed_plain_repo_with_two_functions(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "app.py").write_text(
+        "def get_timeout():\n    return 30\n\n\ndef get_retries():\n    return 3\n"
+    )
+    return repo
+
+
 def _strategy(risk_ceiling: str) -> SolutionStrategy:
     return SolutionStrategy(
         strategy_id="strategy-good",
@@ -356,7 +365,12 @@ def _strategy(risk_ceiling: str) -> SolutionStrategy:
 
 
 def _seed_case(
-    store: _MemoryArtifactStore, *, repo: Path, risk_ceiling: str, git_revision: str | None
+    store: _MemoryArtifactStore,
+    *,
+    repo: Path,
+    risk_ceiling: str,
+    git_revision: str | None,
+    task_symbols: list[str] | None = None,
 ) -> list[ArtifactRef]:
     fingerprint = sha256_digest(canonical_json({"case_id": _CASE_ID, "origin": "manual"}))
     request = OptimizationRequest(
@@ -449,7 +463,8 @@ def _seed_case(
 
     task = PlanTask(
         task_id="task-1", phase_id="phase-1", objective="Raise the timeout constant",
-        files=["src/app.py"], instructions="Change TIMEOUT from 30 to 60 in src/app.py",
+        files=["src/app.py"], symbols=task_symbols or [],
+        instructions="Change TIMEOUT from 30 to 60 in src/app.py",
         owner="app-team",
     )
     task_list = TaskList(
@@ -549,6 +564,83 @@ def test_s03_llm_driven_executor_edits_the_authorized_file_via_the_real_tool_loo
 
     workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
     shutil.rmtree(workspace_path.parent, ignore_errors=True)
+
+
+def test_s03_60_accepts_a_change_to_an_authorized_symbol_in_an_authorized_file(
+    tmp_path: Path,
+) -> None:
+    """A task that declares `symbols=["get_timeout"]` on `src/app.py`
+    authorizes editing that one function; editing only it (leaving
+    `get_retries` untouched) must pass the new symbol-level scope check on
+    top of the existing path-level one."""
+
+    repo = _seed_plain_repo_with_two_functions(tmp_path)
+    store = _MemoryArtifactStore()
+    refs = _seed_case(
+        store, repo=repo, risk_ceiling="experiment_config", git_revision=None,
+        task_symbols=["get_timeout"],
+    )
+    runtime = build_s03_runtime(ports=_ports(store))
+    state = _state(refs)
+
+    for node_id in ("S03.10", "S03.20", "S03.30", "S03.40"):
+        state = _advance(runtime, node_id, state)
+
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+    (workspace_path / "src" / "app.py").write_text(
+        "def get_timeout():\n    return 60\n\n\ndef get_retries():\n    return 3\n"
+    )
+
+    state = _advance(runtime, "S03.60", state)
+
+    assert state["node_routes"]["S03.60"] == "continue"
+    scope_report = cast("dict[str, Any]", state["s03_scope_report"])["report"]
+    assert scope_report["in_scope"] is True
+    assert scope_report["violations"] == []
+
+    shutil.rmtree(workspace_path.parent, ignore_errors=True)
+
+
+def test_s03_60_rejects_a_change_to_an_unauthorized_symbol_in_an_authorized_file(
+    tmp_path: Path,
+) -> None:
+    """The inverse case, and the one pure path-diffing could never catch:
+    the file itself (`src/app.py`) is authorized, but the task only
+    declared `symbols=["get_timeout"]` -- editing `get_retries` instead
+    must be rejected as a symbol-level scope violation, even though no
+    *file* outside the declared scope was touched."""
+
+    repo = _seed_plain_repo_with_two_functions(tmp_path)
+    store = _MemoryArtifactStore()
+    refs = _seed_case(
+        store, repo=repo, risk_ceiling="experiment_config", git_revision=None,
+        task_symbols=["get_timeout"],
+    )
+    runtime = build_s03_runtime(ports=_ports(store))
+    state = _state(refs)
+
+    for node_id in ("S03.10", "S03.20", "S03.30", "S03.40"):
+        state = _advance(runtime, node_id, state)
+
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+    (workspace_path / "src" / "app.py").write_text(
+        "def get_timeout():\n    return 30\n\n\ndef get_retries():\n    return 5\n"
+    )
+
+    state = _advance(runtime, "S03.60", state)
+
+    assert state["node_routes"]["S03.60"] == "rejected"
+    scope_report = cast("dict[str, Any]", state["s03_scope_report"])["report"]
+    assert scope_report["in_scope"] is False
+    assert len(scope_report["violations"]) == 1
+    violation = scope_report["violations"][0]
+    assert violation["kind"] == "symbol"
+    assert violation["path"] == "src/app.py"
+    assert "get_retries" in violation["reason"]
+
+    # A symbol-scope rejection cleans up the workspace just like a
+    # path-scope one (`_s03_60`'s existing `_cleanup_workspace` call).
+    assert not workspace_path.exists()
 
 
 def test_s03_10_fails_closed_when_policy_denies(tmp_path: Path) -> None:

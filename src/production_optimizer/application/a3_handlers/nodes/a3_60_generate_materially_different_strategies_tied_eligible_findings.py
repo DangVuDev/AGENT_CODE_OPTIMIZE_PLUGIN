@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 from production_optimizer.application.node_runtime import NodeExecution, NodePorts
+from production_optimizer.contracts.a1 import OptimizationRequest
+from production_optimizer.contracts.a2 import VerificationManifest
 from production_optimizer.contracts.a3 import FindingSet, SolutionStrategySet, StrategyDraftSet
 from production_optimizer.contracts.state import OptimizationState
 
@@ -20,6 +22,7 @@ from ..shared import (
     _seal,
     _solution_strategy_to_draft,
     _stage_envelope,
+    _validation_command_candidates,
 )
 
 
@@ -30,6 +33,12 @@ def handle_a3_60_generate_materially_different_strategies_tied_eligible_findings
         raise RuntimeError("A3.60 requires ModelProviderPort wired into NodePorts")
 
     finding_set = _read_model(ports, state, _require_ref(state, "FindingSet"), FindingSet)
+    request = _read_model(
+        ports, state, _require_ref(state, "OptimizationRequest"), OptimizationRequest
+    )
+    verification = _read_model(
+        ports, state, _require_ref(state, "VerificationManifest"), VerificationManifest
+    )
     current_pass = _revision_pass(state)
     directive = _latest_revision_directive(ports, state)
 
@@ -50,7 +59,10 @@ def handle_a3_60_generate_materially_different_strategies_tied_eligible_findings
         eligible_findings = finding_set.findings
         carried_forward = []
 
-    context = _build_strategy_context(eligible_findings)
+    validation_commands = _validation_command_candidates(request, verification)
+    context = _build_strategy_context(
+        eligible_findings, validation_commands=validation_commands
+    )
     new_drafts, tokens = _generate_strategy_drafts(ports, state, context, attempt=current_pass)
 
     draft_set = _seal(

@@ -132,10 +132,19 @@ class _ScriptedPlanProvider:
     invents its own), mirroring `test_a3_production_handlers._ScriptedModelProvider`.
     """
 
-    def __init__(self, *, cover_criterion: bool = True, bad_phase_order: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        cover_criterion: bool = True,
+        bad_phase_order: bool = False,
+        forced_scope_file: str | None = None,
+        critic_payload: dict[str, Any] | None = None,
+    ) -> None:
         self.calls: list[ModelCompletionRequest] = []
         self._cover_criterion = cover_criterion
         self._bad_phase_order = bad_phase_order
+        self._forced_scope_file = forced_scope_file
+        self._critic_payload = critic_payload
 
     def complete(self, request: ModelCompletionRequest) -> ModelCompletionResult:
         self.calls.append(request)
@@ -143,7 +152,7 @@ class _ScriptedPlanProvider:
         if ":S02.30:" in request.idempotency_key:
             payload: dict[str, Any] | None = self._plan_payload(context)
         elif ":S02.80:" in request.idempotency_key:
-            payload = {"omissions": [], "concerns": [], "approved": True}
+            payload = self._critic_payload or {"omissions": [], "concerns": [], "approved": True}
         else:
             payload = None
         return ModelCompletionResult(
@@ -163,7 +172,9 @@ class _ScriptedPlanProvider:
 
     def _plan_payload(self, context: str) -> dict[str, Any]:
         scope_match = _SCOPE_LINE.search(context)
-        scope_file = scope_match.group(1) if scope_match else "src/app.py"
+        scope_file = self._forced_scope_file or (
+            scope_match.group(1) if scope_match else "src/app.py"
+        )
         criterion_match = _CRITERION_LINE.search(context)
         criterion_id = criterion_match.group(1) if criterion_match else "latency-p95"
         done_criteria = [f"{criterion_id} improves"] if self._cover_criterion else ["done"]
@@ -319,11 +330,16 @@ def _seal_and_store(store: _MemoryArtifactStore, model: BaseModel) -> ArtifactRe
 
 
 def _seed_case(
-    tmp_path: Any, store: _MemoryArtifactStore, *, risk_ceiling: str
+    tmp_path: Any,
+    store: _MemoryArtifactStore,
+    *,
+    risk_ceiling: str,
+    scope_file: str = "src/app.py",
 ) -> list[ArtifactRef]:
     repo = tmp_path / "repo"
-    (repo / "src").mkdir(parents=True)
-    (repo / "src" / "app.py").write_text("def handle():\n    threshold = 100\n")
+    source_path = repo / scope_file
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("def handle():\n    threshold = 100\n")
     (repo / "tests").mkdir()
     (repo / "tests" / "test_app.py").write_text("def test_handle():\n    assert True\n")
 
@@ -396,6 +412,7 @@ def _seed_case(
         validation_plan=ValidationPlan(
             plan_id="validation-1",
             strategy_id="strategy-good",
+            test_command_ids=["benchmark"],
             benchmark_protocol="rerun the latency benchmark",
             stop_conditions=["still slow"],
         ),
@@ -409,7 +426,7 @@ def _seed_case(
         scope_resolution=ScopeResolutionReport(
             report_id="scope-1",
             strategy_id="strategy-good",
-            entries=[ScopeResolutionEntry(path_or_symbol="src/app.py", kind="file", exists=True)],
+            entries=[ScopeResolutionEntry(path_or_symbol=scope_file, kind="file", exists=True)],
             fully_resolved=True,
         ),
         evidence_ids=["evidence-1"],
@@ -480,6 +497,7 @@ def test_s02_auto_approves_and_seals_a_real_plan_for_a_low_risk_strategy(tmp_pat
         "tasks_well_formed": True,
         "dependency_dag_acyclic": True,
         "phase_ordering_by_risk": True,
+        "risk_ladder_ordering": True,
         "paths_resolve": True,
         "criteria_coverage": True,
         "rollback_defined": True,
@@ -488,10 +506,72 @@ def test_s02_auto_approves_and_seals_a_real_plan_for_a_low_risk_strategy(tmp_pat
 
     plan = _model_from_ref(store, _ref_by_type(state, "ExecutionPlan"), ExecutionPlan)
     assert plan.phases[0].treatment.variable == "threshold"
+    assert plan.phases[0].risk_tier == "prompt"
+    assert plan.phases[0].affected_criteria == ["latency-p95"]
+    assert plan.phases[0].validation_command_ids == ["benchmark"]
     task_list = _model_from_ref(store, _ref_by_type(state, "TaskList"), TaskList)
     assert task_list.tasks[0].files == ["src/app.py"]
     assert quality.execution_plan_digest == plan.content_digest
     assert quality.task_list_digest == task_list.content_digest
+
+
+def test_s02_repairs_unique_model_invented_path_to_real_repository_path(tmp_path: Any) -> None:
+    store = _MemoryArtifactStore()
+    refs = _seed_case(
+        tmp_path,
+        store,
+        risk_ceiling="prompt",
+        scope_file="internal/checkout/service.go",
+    )
+    model = _ScriptedPlanProvider(forced_scope_file="src/checkout/service.go")
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
+    for node_id in S02_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    assert _current_route(state, "S02.81") == "continue"
+    quality = _model_from_ref(store, _ref_by_type(state, "PlanQualityReport"), PlanQualityReport)
+    paths_result = next(result for result in quality.results if result.dimension == "paths_resolve")
+    assert paths_result.passed is True
+    task_list = _model_from_ref(store, _ref_by_type(state, "TaskList"), TaskList)
+    assert task_list.tasks[0].files == ["internal/checkout/service.go"]
+    assert state["s02_plan_draft"]["path_repairs"] == [
+        "task-1: src/checkout/service.go -> internal/checkout/service.go"
+    ]
+
+
+def test_s02_critic_does_not_block_on_ungrounded_generic_risk_concerns(
+    tmp_path: Any,
+) -> None:
+    store = _MemoryArtifactStore()
+    refs = _seed_case(tmp_path, store, risk_ceiling="prompt")
+    model = _ScriptedPlanProvider(
+        critic_payload={
+            "omissions": [],
+            "concerns": [
+                "Removing blocking synchronization in the checkout service could introduce "
+                "race conditions."
+            ],
+            "approved": False,
+        }
+    )
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
+    for node_id in S02_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    assert _current_route(state, "S02.81") == "continue"
+    assert state["s02_critique"]["concerns"] == []
+    assert state["s02_critique"]["ignored_ungrounded"] == [
+        "Removing blocking synchronization in the checkout service could introduce race conditions."
+    ]
+    quality = _model_from_ref(store, _ref_by_type(state, "PlanQualityReport"), PlanQualityReport)
+    critic_result = next(
+        result for result in quality.results if result.dimension == "critic_approved"
+    )
+    assert critic_result.passed is True
 
 
 def test_s02_requires_approval_for_code_risk_strategy(tmp_path: Any) -> None:

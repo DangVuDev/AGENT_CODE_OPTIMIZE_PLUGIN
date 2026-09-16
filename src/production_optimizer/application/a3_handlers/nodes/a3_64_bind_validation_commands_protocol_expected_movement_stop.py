@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from production_optimizer.application.node_runtime import NodeExecution, NodePorts
+from production_optimizer.contracts.a1 import OptimizationRequest
 from production_optimizer.contracts.a2 import VerificationManifest
 from production_optimizer.contracts.a3 import (
     RollbackPlan,
@@ -14,6 +15,7 @@ from production_optimizer.contracts.a3 import (
 from production_optimizer.contracts.state import OptimizationState
 
 from ..shared import (
+    _expected_metric_movements,
     _pass_stage_id,
     _put_envelope,
     _read_model,
@@ -22,6 +24,8 @@ from ..shared import (
     _revision_pass,
     _seal,
     _stage_envelope,
+    _validation_benchmark_protocol,
+    _validation_command_candidates,
 )
 
 
@@ -43,23 +47,29 @@ def handle_a3_64_bind_validation_commands_protocol_expected_movement_stop(
     verification = _read_model(
         ports, state, _require_ref(state, "VerificationManifest"), VerificationManifest
     )
-    real_command_ids = [command.command_id for command in verification.commands]
+    request = _read_model(
+        ports, state, _require_ref(state, "OptimizationRequest"), OptimizationRequest
+    )
+    validation_commands = _validation_command_candidates(request, verification)
+    real_command_ids = [command.command_id for command in validation_commands]
+    expected_metric_movements = _expected_metric_movements(request)
 
     updated: list[StrategyDraft] = []
     for draft in draft_set.strategies:
         reasons = list(draft.gate_reasons)
         validation_plan = draft.validation_plan
-        if validation_plan is None:
+        if validation_plan is None or not validation_plan.test_command_ids:
             if real_command_ids:
                 validation_plan = ValidationPlan(
                     plan_id=f"validation-{draft.strategy_id}",
                     strategy_id=draft.strategy_id,
                     test_command_ids=real_command_ids,
-                    benchmark_protocol="rerun repository-owned commands via A2.50 worker jobs",
-                    expected_metric_movements={
-                        cid: "unchanged-or-improved" for cid in real_command_ids
-                    },
-                    stop_conditions=["any previously-passing command starts failing"],
+                    benchmark_protocol=_validation_benchmark_protocol(validation_commands),
+                    expected_metric_movements=expected_metric_movements,
+                    stop_conditions=[
+                        "any validation command exits nonzero",
+                        "any guardrail metric violates its declared threshold",
+                    ],
                 )
             else:
                 reasons.append(
@@ -71,6 +81,35 @@ def handle_a3_64_bind_validation_commands_protocol_expected_movement_stop(
                     test_command_ids=[],
                     benchmark_protocol="none available",
                     stop_conditions=["no verification command available"],
+                )
+        else:
+            known_command_ids = set(real_command_ids)
+            unknown_command_ids = [
+                command_id
+                for command_id in validation_plan.test_command_ids
+                if command_id not in known_command_ids
+            ]
+            if unknown_command_ids:
+                reasons.append(
+                    "validation plan references unknown command ids: "
+                    + ", ".join(sorted(unknown_command_ids))
+                )
+            missing_metric_ids = [
+                metric_id
+                for metric_id in expected_metric_movements
+                if metric_id not in validation_plan.expected_metric_movements
+            ]
+            if missing_metric_ids:
+                validation_plan = validation_plan.model_copy(
+                    update={
+                        "expected_metric_movements": {
+                            **validation_plan.expected_metric_movements,
+                            **{
+                                metric_id: expected_metric_movements[metric_id]
+                                for metric_id in missing_metric_ids
+                            },
+                        }
+                    }
                 )
 
         rollback_plan = draft.rollback_plan
@@ -104,7 +143,11 @@ def handle_a3_64_bind_validation_commands_protocol_expected_movement_stop(
                 state,
                 _pass_stage_id("A3.64", current_pass),
                 "StrategyDraftSet",
-                parents=[draft_set.content_digest, verification.content_digest],
+                parents=[
+                    draft_set.content_digest,
+                    verification.content_digest,
+                    request.content_digest,
+                ],
             ),
             strategies=updated,
         )

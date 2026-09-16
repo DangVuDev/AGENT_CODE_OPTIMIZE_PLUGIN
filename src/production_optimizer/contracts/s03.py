@@ -33,6 +33,13 @@ class ExecutionProvenance(ArtifactEnvelope):
 
 
 class ScopeViolation(ContractModel):
+    """`kind` distinguishes a file changed outside the phase's declared paths
+    (`"path"`) from a symbol changed inside an allowed file but outside that
+    file's own declared symbol set (`"symbol"`) -- see the spec's S03.60 row
+    ("Compare changed paths/symbols/dependencies ... with plan",
+    `docs/project-blueprint/shared-workflow/03-implement-phase.md`)."""
+
+    kind: Literal["path", "symbol"] = "path"
     path: str = Field(min_length=1)
     reason: str = Field(min_length=1)
 

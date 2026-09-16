@@ -27,6 +27,7 @@ this without an artifact_refs collision.
 
 from __future__ import annotations
 
+import ast
 import difflib
 import re
 import shutil
@@ -283,7 +284,17 @@ def _s03_30(state: OptimizationState, ports: NodePorts) -> NodeExecution:
 
 def _s03_40(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     """Supply only the active phase's own files, instructions and one
-    pre-authorized command -- BR-03-002's least-privilege boundary."""
+    pre-authorized command -- BR-03-002's least-privilege boundary.
+
+    `allowed_symbols_by_path` narrows scope one level past `allowed_write_paths`:
+    a path is only symbol-restricted if at least one of its tasks actually
+    declared `PlanTask.symbols` (S02's plan already carries this field). A
+    path with no task declaring any symbol for it stays file-scoped only --
+    per the spec's own BR-03-003 ("out-of-scope changes reject the patch;
+    they are not silently trimmed"), narrowing to symbols the model never
+    actually committed to would risk rejecting a legitimate change the plan
+    simply didn't get that specific about.
+    """
 
     plan = cast("ExecutionPlan", _read_required(ports, state, "ExecutionPlan"))
     task_list = cast("TaskList", _read_required(ports, state, "TaskList"))
@@ -292,18 +303,29 @@ def _s03_40(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     phase = next(p for p in plan.phases if p.phase_id == active_phase_id)
     tasks = [task for task in task_list.tasks if task.phase_id == active_phase_id]
     allowed_write_paths = sorted({file for task in tasks for file in task.files})
+    allowed_symbols_by_path: dict[str, list[str]] = {}
+    for task in tasks:
+        if not task.symbols:
+            continue
+        for file in task.files:
+            allowed_symbols_by_path.setdefault(file, []).extend(task.symbols)
+    allowed_symbols_by_path = {
+        path: sorted(set(symbols)) for path, symbols in allowed_symbols_by_path.items()
+    }
     allowed_command = next((c for c in manifest.commands if c.kind == "unit"), None)
 
     context: dict[str, Any] = {
         "phase_id": phase.phase_id,
         "phase_kind": phase.phase_kind,
         "allowed_write_paths": allowed_write_paths,
+        "allowed_symbols_by_path": allowed_symbols_by_path,
         "allowed_command": allowed_command.model_dump(mode="json") if allowed_command else None,
         "task_instructions": [
             {
                 "task_id": task.task_id,
                 "objective": task.objective,
                 "instructions": task.instructions,
+                "symbols": task.symbols,
             }
             for task in tasks
         ],
@@ -409,14 +431,34 @@ def _build_user_context(context: dict[str, Any]) -> str:
         "Tasks:",
     ]
     for task in cast("list[dict[str, Any]]", context.get("task_instructions") or []):
-        lines.append(f"- {task['task_id']}: {task['objective']} -- {task['instructions']}")
+        line = f"- {task['task_id']}: {task['objective']} -- {task['instructions']}"
+        symbols = cast("list[str]", task.get("symbols") or [])
+        if symbols:
+            line += f" (authorized symbols only: {symbols})"
+        lines.append(line)
     return "\n".join(lines)
 
 
 def _s03_60(state: OptimizationState, ports: NodePorts) -> NodeExecution:
-    """Real scope enforcement: byte-compare the whole workspace tree
-    against the untouched source root; anything changed outside the
-    phase's own declared paths is a violation (BR-03-003)."""
+    """Real scope enforcement per the spec's own S03.60 row ("Compare changed
+    paths/symbols/dependencies and treatment semantics with plan",
+    `docs/project-blueprint/shared-workflow/03-implement-phase.md`):
+
+    1. Path level (as before): byte-compare the whole workspace tree against
+       the untouched source root; anything changed outside the phase's own
+       declared paths is a violation.
+    2. Symbol level (new): for a changed Python path whose tasks declared
+       `PlanTask.symbols`, parse both the original and edited source with
+       `ast` and diff top-level function/class/method definitions by name.
+       A changed/added/removed symbol not in that path's declared set is a
+       violation -- caught even though the *file* itself was authorized,
+       which pure path-diffing could never detect. A path with no task
+       symbol declaration stays file-scoped only (see `_s03_40`'s docstring
+       for why: BR-03-003 forbids silently trimming a change the plan never
+       claimed to be that specific about, and the reverse -- inventing a
+       restriction the plan never stated -- is the same mistake in the
+       other direction).
+    """
 
     del ports
     workspace = cast("dict[str, Any]", state.get("s03_workspace") or {})
@@ -424,13 +466,27 @@ def _s03_60(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     root = Path(cast("str", workspace["path"]))
     source_root = Path(cast("str", workspace["source_root"]))
     allowed = set(cast("list[str]", context.get("allowed_write_paths") or []))
+    allowed_symbols_by_path = cast(
+        "dict[str, list[str]]", context.get("allowed_symbols_by_path") or {}
+    )
 
     changed_files = _diff_changed_files(source_root, root)
     violations = [
-        ScopeViolation(path=path, reason="file changed outside the phase's declared scope")
+        ScopeViolation(
+            kind="path", path=path, reason="file changed outside the phase's declared scope"
+        )
         for path in changed_files
         if path not in allowed
     ]
+    for path in changed_files:
+        if path not in allowed or path not in allowed_symbols_by_path:
+            continue
+        violations.extend(
+            _symbol_scope_violations(
+                source_root / path, root / path, path, set(allowed_symbols_by_path[path])
+            )
+        )
+
     report = ScopeReport(in_scope=not violations, violations=violations)
     route = NodeRoute.CONTINUE if report.in_scope else NodeRoute.REJECTED
     if not report.in_scope:
@@ -442,6 +498,69 @@ def _s03_60(state: OptimizationState, ports: NodePorts) -> NodeExecution:
         }
     }
     return NodeExecution(route=route, updates=updates)
+
+
+def _symbol_scope_violations(
+    original_path: Path, edited_path: Path, rel_path: str, allowed_symbols: set[str]
+) -> list[ScopeViolation]:
+    """Diffs top-level function/class/method definitions between the
+    original and edited version of one Python file, by name and body text.
+    Non-Python files, and files that fail to parse (e.g. edited into invalid
+    syntax -- S03.70/S04 catch that separately), are skipped rather than
+    treated as a scope violation: this check only ever adds violations it
+    can actually ground in a real symbol diff, per BR-03-003's own
+    "not silently trimmed" rule -- silence here just means "not applicable",
+    never "assumed fine"."""
+
+    if Path(rel_path).suffix != ".py":
+        return []
+    original_symbols = _extract_symbols(original_path)
+    edited_symbols = _extract_symbols(edited_path)
+    if original_symbols is None or edited_symbols is None:
+        return []
+
+    changed_names = {
+        name
+        for name in {*original_symbols, *edited_symbols}
+        if original_symbols.get(name) != edited_symbols.get(name)
+    }
+    out_of_scope = sorted(changed_names - allowed_symbols)
+    return [
+        ScopeViolation(
+            kind="symbol",
+            path=rel_path,
+            reason=(
+                f"symbol {name!r} changed outside the phase's declared symbols: "
+                f"{sorted(allowed_symbols)}"
+            ),
+        )
+        for name in out_of_scope
+    ]
+
+
+def _extract_symbols(path: Path) -> dict[str, str] | None:
+    """Maps each top-level function/class name (and `Class.method` for each
+    method inside a class) to its own source text, so the caller can detect
+    a changed/added/removed definition by comparing these dicts. Returns
+    `None` (not `{}`) when the file doesn't exist or fails to parse -- the
+    caller must be able to tell "nothing to compare" apart from "compared
+    and found zero definitions", since only the latter is a real, empty diff."""
+
+    try:
+        source = path.read_text(encoding="utf-8", errors="replace")
+        tree = ast.parse(source)
+    except (OSError, SyntaxError, ValueError):
+        return None
+
+    symbols: dict[str, str] = {}
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
+            symbols[node.name] = ast.unparse(node)
+        if isinstance(node, ast.ClassDef):
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                    symbols[f"{node.name}.{child.name}"] = ast.unparse(child)
+    return symbols
 
 
 def _diff_changed_files(source_root: Path, workspace_root: Path) -> list[str]:

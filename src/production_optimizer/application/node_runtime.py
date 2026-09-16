@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -108,6 +109,9 @@ class RegisteredNode:
 _IDENTITY_FIELDS = frozenset({"case_id", "thread_id", "tenant_id", "entrypoint", "lane"})
 _RUNTIME_FIELDS = frozenset(OptimizationState.__annotations__)
 _STATE_FIELD_TYPES = get_type_hints(OptimizationState, include_extras=True)
+_TRACE_NODE_OUTPUTS_ENV = "OPTIMIZER_TRACE_NODE_OUTPUTS"
+_TRACE_NODE_OUTPUT_MAX_BYTES_ENV = "OPTIMIZER_TRACE_NODE_OUTPUT_MAX_BYTES"
+_DEFAULT_TRACE_NODE_OUTPUT_MAX_BYTES = 12000
 
 
 def _json_safe(value: Any) -> Any:
@@ -124,6 +128,36 @@ def _json_safe(value: Any) -> Any:
         safe_list: list[Any] = [_json_safe(item) for item in entries]
         return safe_list
     return value
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _trace_output_max_bytes() -> int:
+    raw = os.environ.get(_TRACE_NODE_OUTPUT_MAX_BYTES_ENV, "").strip()
+    if not raw:
+        return _DEFAULT_TRACE_NODE_OUTPUT_MAX_BYTES
+    try:
+        return max(1000, int(raw))
+    except ValueError:
+        return _DEFAULT_TRACE_NODE_OUTPUT_MAX_BYTES
+
+
+def _print_node_output(node_id: str, route: NodeRoute, updates: Mapping[str, Any]) -> None:
+    payload = {
+        "node_id": node_id,
+        "route": route.value,
+        "updates": _json_safe(dict(updates)),
+    }
+    rendered = json.dumps(payload, indent=2, sort_keys=True, default=str)
+    max_bytes = _trace_output_max_bytes()
+    encoded = rendered.encode("utf-8")
+    if len(encoded) > max_bytes:
+        rendered = encoded[:max_bytes].decode("utf-8", errors="ignore")
+        rendered = f"{rendered}\n... [truncated at {max_bytes} bytes]"
+    print(f"\n[node-output] {node_id} route={route.value}")
+    print(rendered)
 
 
 def _coerce_updates(updates: Mapping[str, Any]) -> dict[str, Any]:
@@ -404,6 +438,8 @@ class NodeRuntime:
         updates["completed_nodes"] = [node_id]
         route_key = _next_route_key(node_id, state.get("node_routes", {}), execution.route.value)
         updates["node_routes"] = {route_key: execution.route.value}
+        if _env_flag(_TRACE_NODE_OUTPUTS_ENV):
+            _print_node_output(node_id, execution.route, updates)
         return updates
 
 

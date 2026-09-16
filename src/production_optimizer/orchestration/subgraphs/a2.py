@@ -24,7 +24,7 @@ def _execution_routes(state: OptimizationState) -> list[str] | str:
     return "halt"
 
 
-def build_a2_graph(runtime: NodeRuntime) -> Any:
+def build_a2_graph(runtime: NodeRuntime, *, checkpointer: Any | None = None) -> Any:
     builder = StateGraph(OptimizationState)
     add_nodes(builder, runtime, A2_NODE_IDS)
     builder.add_edge(START, "A2.10")
@@ -54,4 +54,6 @@ def build_a2_graph(runtime: NodeRuntime) -> Any:
         {"continue": "A2.95", "missing": END, "incomparable": END},
     )
     builder.add_edge("A2.95", END)
+    if checkpointer is not None:
+        return builder.compile(checkpointer=checkpointer)
     return builder.compile()

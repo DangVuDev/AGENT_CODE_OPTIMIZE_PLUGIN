@@ -89,12 +89,8 @@ src/production_optimizer/adapters/production/
 ├── otel_telemetry.py               # OtelTelemetryPort
 ├── local_worker_broker.py          # LocalWorkerBroker (in-process; used by every real script)
 ├── kubernetes_worker_broker.py     # KubernetesWorkerBroker (real, unit-tested; unwired/never run against a live cluster)
-├── anthropic_model_provider.py     # AnthropicModelProvider
-├── openai_model_provider.py        # OpenAIModelProvider
-├── deepseek_model_provider.py      # DeepSeekModelProvider (OpenAI-compatible)
-├── ollama_model_provider.py        # OllamaModelProvider (OpenAI-compatible, local)
-├── gemini_model_provider.py        # GeminiModelProvider
-├── _openai_compatible.py           # Shared chat-completion helper for the OpenAI-compatible providers
+├── generic_model_provider.py       # GenericModelProvider (Anthropic/OpenAI/Gemini/DeepSeek/Ollama/self-hosted)
+├── _openai_compatible.py           # Shared chat-completion helper for OpenAI-compatible backends
 └── postgres_checkpoint.py          # PostgreSQL LangGraph checkpointer
 ```
 
@@ -180,7 +176,7 @@ tests/integration/
 ├── test_postgres_outbox.py             # transactional outbox proof
 ├── test_s3_artifact_store_live.py      # real S3/MinIO round-trip, optional
 ├── test_control_plane_restart.py       # CRITICAL: crash-recovery + no-dup-side-effects
-├── test_anthropic_model_provider.py, test_openai_compatible_model_providers.py, test_gemini_model_provider.py
+├── test_generic_anthropic_model_provider.py, test_generic_openai_compatible_model_provider.py, test_generic_gemini_model_provider.py
 │                                        # real LLM calls, skip if no API key/local server reachable
 └── conftest.py                         # (does NOT exist — repo uses private helpers instead)
 ```

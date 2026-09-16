@@ -4,9 +4,17 @@ Status: accepted, amended
 Scope: unblock A3.40 (generate finding drafts) and A3.50 (independent judge);
 amendment extends adapter coverage to OpenAI, DeepSeek, a local/self-hosted
 OpenAI-compatible runtime (Ollama, vLLM, LM Studio, ...) and Gemini
-Code status: port + five concrete adapters (Anthropic, OpenAI, DeepSeek,
-Ollama, Gemini); A3 handlers built on top of this port are covered
-separately, not by this document
+Code status: port + one configurable `GenericModelProvider` covering
+Anthropic, OpenAI, DeepSeek, Ollama/self-hosted OpenAI-compatible runtimes,
+and Gemini; A3 handlers built on top of this port are covered separately,
+not by this document
+
+2026-09-16 amendment: the earlier per-vendor public adapter classes were
+removed. `GenericModelProvider(provider=...)` is now the single production
+adapter. Historical sections below that mention `AnthropicModelProvider`,
+`OpenAIModelProvider`, `DeepSeekModelProvider`, `OllamaModelProvider`, or
+`GeminiModelProvider` describe the superseded implementation, not the
+current source layout.
 
 ## Context
 

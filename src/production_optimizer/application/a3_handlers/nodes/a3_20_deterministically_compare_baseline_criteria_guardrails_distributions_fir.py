@@ -3,12 +3,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 
 from production_optimizer.application.metrics import resolve_metric, select_aggregate_value
 from production_optimizer.application.node_runtime import NodeExecution, NodePorts
-from production_optimizer.contracts.a1 import OptimizationRequest
-from production_optimizer.contracts.a2 import BaselineSnapshot
+from production_optimizer.contracts.a1 import Criterion, OptimizationRequest
+from production_optimizer.contracts.a2 import BaselineSnapshot, EvidenceBundle, EvidenceItem
 from production_optimizer.contracts.a3 import EvidenceCatalog, ProblemSignal, ProblemSignalSet
 from production_optimizer.contracts.state import OptimizationState
 
@@ -21,6 +22,44 @@ from ..shared import (
     _require_ref,
     _seal,
 )
+
+
+def _numeric_value(item: EvidenceItem) -> float | None:
+    value = item.value
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
+def _criterion_supporting_evidence_ids(
+    bundle: EvidenceBundle, criterion: Criterion
+) -> list[str]:
+    ids: list[str] = []
+    for item in bundle.evidence:
+        if item.metric_id != criterion.metric_id:
+            continue
+        value = _numeric_value(item)
+        if value is not None and _criterion_breached(criterion, value):
+            ids.append(item.evidence_id)
+    return ids
+
+
+def _guardrail_supporting_evidence_ids(
+    bundle: EvidenceBundle,
+    metric_id: str,
+    operator: Callable[[float, float], bool],
+    threshold: float,
+) -> list[str]:
+    ids: list[str] = []
+    for item in bundle.evidence:
+        if item.metric_id != metric_id:
+            continue
+        value = _numeric_value(item)
+        if value is not None and not operator(value, threshold):
+            ids.append(item.evidence_id)
+    return ids
 
 
 def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distributions_fir(
@@ -45,6 +84,7 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
     )
     baseline = _read_model(ports, state, _require_ref(state, "BaselineSnapshot"), BaselineSnapshot)
     catalog = _read_model(ports, state, _require_ref(state, "EvidenceCatalog"), EvidenceCatalog)
+    bundle = _read_model(ports, state, _require_ref(state, "EvidenceBundle"), EvidenceBundle)
 
     aggregates_by_metric = {agg.metric_id: agg for agg in baseline.aggregates}
     now = datetime.now(UTC)
@@ -57,6 +97,11 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
         observed = select_aggregate_value(agg, criterion.aggregation)
         if not _criterion_breached(criterion, observed):
             continue
+        evidence_ids = (
+            _criterion_supporting_evidence_ids(bundle, criterion)
+            or catalog.by_metric.get(criterion.metric_id)
+            or list(agg.sample_ids)
+        )
         signals.append(
             ProblemSignal(
                 signal_id=f"signal-{criterion.criterion_id}",
@@ -70,7 +115,7 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
                 baseline_value=observed,
                 target_value=criterion.target,
                 unit=criterion.unit,
-                evidence_ids=catalog.by_metric.get(criterion.metric_id) or list(agg.sample_ids),
+                evidence_ids=evidence_ids,
                 detected_at=now,
             )
         )
@@ -88,6 +133,9 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
         op = _GUARDRAIL_OPERATORS[guardrail.operator]
         if op(observed, guardrail.threshold):
             continue
+        evidence_ids = _guardrail_supporting_evidence_ids(
+            bundle, guardrail.metric_id, op, guardrail.threshold
+        ) or catalog.by_metric.get(guardrail.metric_id) or list(agg.sample_ids)
         signals.append(
             ProblemSignal(
                 signal_id=f"signal-guardrail-{guardrail.guardrail_id}",
@@ -105,7 +153,7 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
                 baseline_value=observed,
                 target_value=guardrail.threshold,
                 unit=guardrail.unit,
-                evidence_ids=catalog.by_metric.get(guardrail.metric_id) or list(agg.sample_ids),
+                evidence_ids=evidence_ids,
                 detected_at=now,
             )
         )
@@ -113,7 +161,9 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
     signal_set = _seal(
         ProblemSignalSet(
             **_base_envelope(
-                state, "ProblemSignalSet", parents=[baseline.content_digest, catalog.content_digest]
+                state,
+                "ProblemSignalSet",
+                parents=[baseline.content_digest, catalog.content_digest, bundle.content_digest],
             ),
             signals=signals,
         )

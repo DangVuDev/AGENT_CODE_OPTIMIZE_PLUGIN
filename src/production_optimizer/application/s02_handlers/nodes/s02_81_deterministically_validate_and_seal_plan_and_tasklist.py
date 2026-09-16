@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, cast
 
 from production_optimizer.application.node_runtime import NodeExecution, NodePorts, NodeRoute
@@ -24,9 +23,12 @@ from ..shared import (
     _base_envelope,
     _check_acyclic,
     _check_phase_risk_order,
+    _check_risk_ladder_order,
     _pass_stage_id,
+    _path_resolution_failures,
     _put_envelope,
     _read_required,
+    _repository_file_paths,
     _seal,
     _selected_solution_ref,
     _stage_envelope,
@@ -45,18 +47,14 @@ def handle_s02_81_deterministically_validate_and_seal_plan_and_tasklist(
     draft = cast("dict[str, Any]", state.get("s02_plan_draft") or {})
     phases = cast("list[ExecutionPhase]", draft.get("phases") or [])
     tasks = cast("list[PlanTask]", draft.get("tasks") or [])
-    root = Path(snapshot.canonical_path_ref)
+    allowed_paths = set(_repository_file_paths(snapshot))
 
     phase_failures = cast("list[str]", draft.get("phase_failures") or [])
     task_failures = cast("list[str]", draft.get("task_failures") or [])
     dag_ok, dag_detail = _check_acyclic(tasks)
     risk_order_ok, risk_order_detail = _check_phase_risk_order(phases)
-    path_failures = [
-        f"{task.task_id}: {file} does not exist and is not marked proposed_creation"
-        for task in tasks
-        for file in task.files
-        if not task.proposed_creation and not (root / file).exists()
-    ]
+    risk_ladder_ok, risk_ladder_detail = _check_risk_ladder_order(phases)
+    path_failures = _path_resolution_failures(tasks, allowed_paths=allowed_paths)
     coverage = cast("dict[str, bool]", draft.get("acceptance_coverage") or {})
     rollback_ok = bool(draft.get("rollback_ok"))
     rollback_reasons = cast("list[str]", draft.get("rollback_reasons") or [])
@@ -79,6 +77,11 @@ def handle_s02_81_deterministically_validate_and_seal_plan_and_tasklist(
             dimension="phase_ordering_by_risk",
             passed=risk_order_ok,
             detail=risk_order_detail,
+        ),
+        PlanQualityResult(
+            dimension="risk_ladder_ordering",
+            passed=risk_ladder_ok,
+            detail=risk_ladder_detail,
         ),
         PlanQualityResult(
             dimension="paths_resolve",

@@ -4,7 +4,6 @@ from .checkpoints import CheckpointProvider
 from .evidence_decoder import EvidenceDecoderPort
 from .identity import IdentityPort
 from .intents import IntentLedger
-from .model_deferrals import ModelCallDeferralPort
 from .model_provider import ModelProviderPort
 from .outbox import OutboxPort
 from .policy import PolicyPort
@@ -21,7 +20,6 @@ __all__ = [
     "EvidenceDecoderPort",
     "IdentityPort",
     "IntentLedger",
-    "ModelCallDeferralPort",
     "ModelProviderPort",
     "OutboxPort",
     "PolicyPort",

@@ -42,13 +42,15 @@ from typing import Any, cast
 
 from _lane1_common import (
     LocalScriptedModelProvider,
+    add_model_runtime_args,
     build_control_plane,
+    model_selection_kwargs_from_args,
     read_model,
     ref_by_type,
     select_model_provider,
 )
 
-from production_optimizer.adapters.production import DeferredModelCallError, is_retryable
+from production_optimizer.adapters.production import report_model_provider_error
 from production_optimizer.adapters.production.local_worker_broker import LocalWorkerBroker
 from production_optimizer.application import (
     NodePorts,
@@ -155,6 +157,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "through S07, same as before this flag existed."
         ),
     )
+    add_model_runtime_args(parser)
     return parser.parse_args(argv)
 
 
@@ -328,9 +331,12 @@ def _run_s01_and_s02_only(
     print(f"ExecutionPlan: {len(plan.phases)} phase(s)")
     for phase in plan.phases:
         print(
-            f"  - {phase.phase_id} (seq={phase.sequence}, kind={phase.phase_kind}): "
+            f"  - {phase.phase_id} (seq={phase.sequence}, kind={phase.phase_kind}, "
+            f"risk={phase.risk_tier}): "
             f"{phase.treatment.variable} {phase.treatment.before} -> {phase.treatment.after}"
         )
+        print(f"    affected_criteria: {phase.affected_criteria}")
+        print(f"    validation_command_ids: {phase.validation_command_ids}")
     print(f"TaskList: {len(task_list.tasks)} task(s)")
     for task in task_list.tasks:
         print(f"  - {task.task_id} (phase={task.phase_id}): {task.objective}")
@@ -414,7 +420,7 @@ def main() -> None:
     model_provider, model_id = select_model_provider(
         tenant_id=_TENANT_ID,
         thread_id=thread_id,
-        deferrals=CONTROL_PLANE.model_deferrals,
+        **model_selection_kwargs_from_args(args),
     )
     a3_ports = NodePorts(
         artifacts=store,
@@ -544,38 +550,10 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except DeferredModelCallError as error:
-        print(f"\n[DEFERRED] {error}")
-        if error.deferral_id is not None:
-            print(f"Deferred model call persisted: {error.deferral_id}")
-        print(
-            "All approved model providers are temporarily unavailable. In a durable "
-            "deployment this would be persisted and resumed from the exact model node "
-            "by the scheduler; this local CLI has no durable scheduler, so re-run the "
-            "same command after the retry window or configure another approved provider."
-        )
-        raise SystemExit(75) from None
     except Exception as error:
         # `a3_handlers`/`s02_handlers` call `ports.model.complete()` bare, on
-        # purpose (see `RetryingModelProvider`'s own docstring): a node must
-        # not hide a dead provider. `RetryingModelProvider` already retries
-        # every transient failure (rate limit, timeout, 5xx) with backoff
-        # before this ever surfaces, so by the time it reaches here the
-        # provider has been down for the whole retry window, not one bad
-        # request. A raw traceback buries that one-line fact under 40 lines
-        # of langgraph/tenacity/SDK internals -- print it plainly instead,
-        # then exit non-zero (this is still a real failure, not a success).
-        if is_retryable(error):
-            print(
-                f"\n[FATAL] The model provider kept failing after retries: "
-                f"{type(error).__name__}: {error}"
-            )
-            print(
-                "This is a transient upstream issue (the provider is overloaded, rate-limited, "
-                "or timing out) -- not a bug in this pipeline. Nothing was corrupted: state for "
-                "this run lives only in this process's memory, so re-running the command starts "
-                "clean. Options: try again shortly, set a different *_MODEL_ID in .env for the "
-                "same provider, or set a different provider's API key (see .env.example)."
-            )
-            raise SystemExit(1) from None
-        raise
+        # purpose: a node must not hide a dead provider. `GenericModelProvider`
+        # already turns any SDK failure into `ModelProviderError`; this just
+        # renders it as a clean one-line explanation + exit code instead of a
+        # raw traceback. Anything else is re-raised unchanged.
+        raise SystemExit(report_model_provider_error(error)) from None

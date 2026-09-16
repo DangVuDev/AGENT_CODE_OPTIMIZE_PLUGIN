@@ -21,6 +21,7 @@ interrupt shape.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -35,6 +36,7 @@ from production_optimizer.application.node_runtime import (
     NodeRuntime,
     RegisteredNode,
 )
+from production_optimizer.contracts.a1 import OptimizationRequest
 from production_optimizer.contracts.a2 import RepositoryManifest, SourceSnapshot
 from production_optimizer.contracts.a3 import SolutionPortfolio
 from production_optimizer.contracts.artifacts import ArtifactRef
@@ -61,6 +63,44 @@ _PROMPT_VERSION = "s02-plan-v1"
 _DEFAULT_S02_MODEL_ID = "claude-sonnet-5"
 _MAX_S02_REVISIONS = 2
 _APPROVAL_RISK_TIERS = {"code", "architecture"}
+_RISK_TIER_ORDER = {"experiment_config": 0, "prompt": 1, "code": 2, "architecture": 3}
+_PATH_PROMPT_LIMIT = 200
+_PATH_SCAN_LIMIT = 5000
+_IGNORED_PATH_PARTS = {
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "dist",
+    "node_modules",
+    "target",
+    "vendor",
+}
+_LOW_VALUE_TOKENS = {
+    "and",
+    "app",
+    "code",
+    "file",
+    "for",
+    "from",
+    "http",
+    "impl",
+    "into",
+    "latency",
+    "metric",
+    "optimize",
+    "performance",
+    "primary",
+    "service",
+    "test",
+    "that",
+    "the",
+    "this",
+    "with",
+}
 
 _ROUTE_OVERRIDES: dict[str, set[str]] = {
     "S02.10": {NodeRoute.CONTINUE.value, NodeRoute.REJECTED.value},
@@ -79,6 +119,10 @@ _PLAN_DRAFT_SCHEMA = {
                     "phase_id": {"type": "string"},
                     "sequence": {"type": "integer"},
                     "phase_kind": {"type": "string", "enum": ["diagnostic", "implementation"]},
+                    "risk_tier": {
+                        "type": "string",
+                        "enum": ["experiment_config", "prompt", "code", "architecture"],
+                    },
                     "treatment": {
                         "type": "object",
                         "properties": {
@@ -89,6 +133,8 @@ _PLAN_DRAFT_SCHEMA = {
                         "required": ["variable", "before", "after"],
                     },
                     "done_criteria": {"type": "array", "items": {"type": "string"}},
+                    "affected_criteria": {"type": "array", "items": {"type": "string"}},
+                    "validation_command_ids": {"type": "array", "items": {"type": "string"}},
                     "rollback_command": {"type": ["string", "null"]},
                     "rollback_trigger": {"type": "string"},
                     "rollback_deadline_seconds": {"type": "integer"},
@@ -97,8 +143,11 @@ _PLAN_DRAFT_SCHEMA = {
                     "phase_id",
                     "sequence",
                     "phase_kind",
+                    "risk_tier",
                     "treatment",
                     "done_criteria",
+                    "affected_criteria",
+                    "validation_command_ids",
                     "rollback_trigger",
                     "rollback_deadline_seconds",
                 ],
@@ -192,29 +241,414 @@ def _strategy_by_id(portfolio: SolutionPortfolio, strategy_id: str) -> Any:
     raise ValueError(f"strategy {strategy_id!r} not found in SolutionPortfolio")
 
 
-def _build_plan_context(strategy: Any, dependency_map: dict[str, list[str]]) -> str:
+def _normalize_repo_path(path: str) -> str:
+    return path.replace("\\", "/").lstrip("./")
+
+
+def _repository_file_paths(snapshot: SourceSnapshot) -> list[str]:
+    snapshot_paths = sorted(
+        {
+            _normalize_repo_path(file.relative_path)
+            for file in snapshot.files
+            if file.relative_path.strip()
+        }
+    )
+    if snapshot_paths:
+        return snapshot_paths
+
+    root = Path(snapshot.canonical_path_ref)
+    if not root.exists():
+        return []
+
+    paths: list[str] = []
+    try:
+        for candidate in root.rglob("*"):
+            if len(paths) >= _PATH_SCAN_LIMIT:
+                break
+            if not candidate.is_file():
+                continue
+            relative = candidate.relative_to(root)
+            if any(part in _IGNORED_PATH_PARTS for part in relative.parts):
+                continue
+            paths.append(_normalize_repo_path(str(relative)))
+    except OSError:
+        return sorted(paths)
+    return sorted(paths)
+
+
+def _text_tokens(*parts: str | None) -> set[str]:
+    tokens: set[str] = set()
+    for part in parts:
+        if not part:
+            continue
+        for token in re.findall(r"[A-Za-z0-9_]+", part.lower()):
+            normalized = token.strip("_")
+            if len(normalized) >= 3 and normalized not in _LOW_VALUE_TOKENS:
+                tokens.add(normalized)
+    return tokens
+
+
+def _strategy_relevance_tokens(strategy: Any, request: OptimizationRequest | None) -> set[str]:
+    text_parts: list[str | None] = [strategy.title, strategy.mechanism, strategy.strategy_tradeoffs]
+    for template in strategy.phase_templates:
+        text_parts.extend(
+            [
+                template.phase_id,
+                template.treatment.variable,
+                template.treatment.before,
+                template.treatment.after,
+            ]
+        )
+    for entry in strategy.scope_resolution.entries:
+        text_parts.append(entry.path_or_symbol)
+    if request is not None:
+        text_parts.extend(
+            [
+                request.objective.feature_id,
+                request.objective.statement,
+                request.workload.workload_id,
+            ]
+        )
+        text_parts.extend(criterion.metric_id for criterion in request.criteria)
+        text_parts.extend(guardrail.metric_id for guardrail in request.guardrails)
+    return _text_tokens(*text_parts)
+
+
+def _rank_paths_by_relevance(paths: list[str], tokens: set[str]) -> list[str]:
+    if not tokens:
+        return paths
+
+    def score(path: str) -> tuple[int, str]:
+        lower_path = path.lower()
+        basename = path.rsplit("/", maxsplit=1)[-1].lower()
+        value = 0
+        for token in tokens:
+            if token in basename:
+                value += 4
+            if token in lower_path:
+                value += 1
+        return (-value, path)
+
+    return sorted(paths, key=score)
+
+
+def _allowed_plan_paths(
+    strategy: Any,
+    dependency_map: dict[str, list[str]],
+    snapshot: SourceSnapshot,
+    request: OptimizationRequest | None,
+) -> list[str]:
+    paths = _repository_file_paths(snapshot)
+    if len(paths) <= _PATH_PROMPT_LIMIT:
+        return paths
+
+    known = set(paths)
+    pinned: set[str] = set()
+    for entry in strategy.scope_resolution.entries:
+        normalized = _normalize_repo_path(entry.path_or_symbol)
+        if normalized in known:
+            pinned.add(normalized)
+    for source_path, tests in dependency_map.items():
+        normalized_source = _normalize_repo_path(source_path)
+        if normalized_source in known:
+            pinned.add(normalized_source)
+        for test_path in tests:
+            normalized_test = _normalize_repo_path(test_path)
+            if normalized_test in known:
+                pinned.add(normalized_test)
+
+    ranked = _rank_paths_by_relevance(paths, _strategy_relevance_tokens(strategy, request))
+    selected: list[str] = []
+    for path in [*sorted(pinned), *ranked]:
+        if path not in selected:
+            selected.append(path)
+        if len(selected) >= _PATH_PROMPT_LIMIT:
+            break
+    return selected
+
+
+def _format_request_criteria(request: OptimizationRequest | None) -> list[str]:
+    if request is None:
+        return ["- <OptimizationRequest unavailable to S02>"]
+    lines: list[str] = []
+    for criterion in request.criteria:
+        lines.append(
+            "- "
+            f"{criterion.criterion_id}: metric={criterion.metric_id}, "
+            f"aggregation={criterion.aggregation}, direction={criterion.direction}, "
+            f"target={criterion.target}{criterion.unit}, "
+            f"acceptance={criterion.acceptance_operator}, weight={criterion.weight}"
+        )
+    if request.guardrails:
+        lines.append("Guardrails that implementation must preserve:")
+        for guardrail in request.guardrails:
+            lines.append(
+                "- "
+                f"{guardrail.guardrail_id}: metric={guardrail.metric_id}, "
+                f"operator={guardrail.operator}, threshold={guardrail.threshold}"
+                f"{guardrail.unit}, severity={guardrail.severity}"
+            )
+    return lines
+
+
+def _format_validation_commands(strategy: Any, request: OptimizationRequest | None) -> list[str]:
+    lines: list[str] = []
+    if strategy.validation_plan.test_command_ids:
+        lines.append(
+            "Selected strategy validation command ids: "
+            f"{strategy.validation_plan.test_command_ids}"
+        )
+    if strategy.validation_plan.expected_metric_movements:
+        lines.append(
+            "Expected metric movements: "
+            f"{strategy.validation_plan.expected_metric_movements}"
+        )
+    if request is None or request.execution is None:
+        lines.append("- <no docker-compose evaluation contract available>")
+        return lines
+    lines.append(f"Compose file: {request.execution.compose_file}")
+    for evaluation in request.execution.evaluations:
+        command = " ".join(evaluation.command.argv)
+        lines.append(
+            "- "
+            f"{evaluation.evaluation_id}: service={evaluation.command.service}, "
+            f"command={command!r}, "
+            f"cwd={evaluation.command.working_directory or '<service default>'}, "
+            f"metrics={sorted(evaluation.expected_metric_ids)}, "
+            f"repetitions={evaluation.repetitions}, warmup={evaluation.warmup_runs}"
+        )
+    return lines
+
+
+def _phase_template_risk_tier(template: Any, strategy: Any) -> str:
+    factors = " ".join(str(item).lower() for item in template.risk_factors)
+    variable = str(template.treatment.variable).lower()
+    if "architecture" in factors or "migration" in factors:
+        return "architecture"
+    if "prompt" in factors or "prompt" in variable:
+        return "prompt"
+    if "config" in factors or "configuration" in factors or "config" in variable:
+        return "experiment_config"
+    if template.phase_kind == "diagnostic":
+        return "experiment_config"
+    return cast("str", strategy.risk_ceiling)
+
+
+def _phase_template_risk_tiers(strategy: Any) -> dict[str, str]:
+    return {
+        template.phase_id: _phase_template_risk_tier(template, strategy)
+        for template in strategy.phase_templates
+    }
+
+
+def _strategy_validation_command_ids(
+    strategy: Any, request: OptimizationRequest | None
+) -> list[str]:
+    command_ids = list(strategy.validation_plan.test_command_ids)
+    if command_ids:
+        return command_ids
+    if request is not None and request.execution is not None:
+        return [evaluation.evaluation_id for evaluation in request.execution.evaluations]
+    return []
+
+
+def _build_plan_context(
+    strategy: Any,
+    dependency_map: dict[str, list[str]],
+    *,
+    snapshot: SourceSnapshot,
+    request: OptimizationRequest | None,
+) -> str:
+    allowed_paths = _allowed_plan_paths(strategy, dependency_map, snapshot, request)
     lines = [
         f"Strategy: {strategy.title}",
         f"Mechanism: {strategy.mechanism}",
         f"Risk ceiling: {strategy.risk_ceiling}",
+        "\nRequester criteria. Done criteria must mention the real metric id/target, "
+        "not only the internal criterion id:",
+        *_format_request_criteria(request),
+        "\nValidation commands. Every implementation phase must be verifiable by these "
+        "repository-owned commands:",
+        *_format_validation_commands(strategy, request),
         "\nExisting phase templates (refine/extend, keep sequence order):",
     ]
     for template in strategy.phase_templates:
+        risk_tier = _phase_template_risk_tier(template, strategy)
         lines.append(
-            f"- {template.phase_id} (seq={template.sequence}, kind={template.phase_kind}): "
+            f"- {template.phase_id} (seq={template.sequence}, kind={template.phase_kind}, "
+            f"risk_tier={risk_tier}): "
             f"{template.treatment.variable} {template.treatment.before} -> "
             f"{template.treatment.after}"
         )
     lines.append("\nCriteria this strategy claims to affect (must be covered by done_criteria):")
     for impact in strategy.impact_assessment.criterion_impacts:
+        criterion_hint = ""
+        if request is not None:
+            for criterion in request.criteria:
+                if criterion.criterion_id == impact.criterion_id:
+                    criterion_hint = (
+                        f", metric={criterion.metric_id}, target={criterion.target}{criterion.unit}"
+                    )
+                    break
         lines.append(
-            f"- {impact.criterion_id} ({impact.direction}, confidence={impact.confidence})"
+            f"- {impact.criterion_id} ({impact.direction}, confidence={impact.confidence}"
+            f"{criterion_hint})"
         )
     lines.append("\nScope entries and any real test files discovered for them:")
     for entry in strategy.scope_resolution.entries:
         tests = dependency_map.get(entry.path_or_symbol, [])
         lines.append(f"- {entry.path_or_symbol} ({entry.kind}) tests={tests}")
+    lines.append(
+        "\nAllowed existing repository paths for task.files. Use exact strings from this "
+        "list. If a file is not listed, do not include it unless proposed_creation=true "
+        "and the task explicitly creates a new file:"
+    )
+    lines.extend(f"- {path}" for path in allowed_paths)
+    lines.append(
+        "\nRequired phase metadata: copy risk_tier from the phase template, "
+        "set affected_criteria to the criterion ids the phase validates, and set "
+        "validation_command_ids to repository-owned validation command ids above. "
+        "Order phase sequence by risk ladder: experiment_config < prompt < code < architecture."
+    )
     return "\n".join(lines)
+
+
+def _resolve_existing_task_file(raw_path: str, allowed_paths: set[str]) -> str | None:
+    normalized = _normalize_repo_path(raw_path)
+    if normalized in allowed_paths:
+        return normalized
+    parts = [part for part in normalized.split("/") if part]
+    max_suffix_parts = min(len(parts), 4)
+    for size in range(max_suffix_parts, 0, -1):
+        suffix = "/".join(parts[-size:])
+        matches = [path for path in allowed_paths if path.endswith(suffix)]
+        if len(matches) == 1:
+            return matches[0]
+    basename = parts[-1] if parts else normalized
+    matches = [path for path in allowed_paths if path.rsplit("/", maxsplit=1)[-1] == basename]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _repair_task_file_paths(
+    files: list[str], *, allowed_paths: set[str]
+) -> tuple[list[str], list[str]]:
+    repaired: list[str] = []
+    repair_notes: list[str] = []
+    for raw_path in files:
+        normalized = _normalize_repo_path(raw_path)
+        resolved = _resolve_existing_task_file(normalized, allowed_paths)
+        if resolved is None:
+            repaired.append(normalized)
+            continue
+        if resolved != normalized:
+            repair_notes.append(f"{raw_path} -> {resolved}")
+        repaired.append(resolved)
+    return repaired, repair_notes
+
+
+def _path_resolution_failures(
+    tasks: list[PlanTask], *, allowed_paths: set[str]
+) -> list[str]:
+    return [
+        f"{task.task_id}: {file} does not exist and is not marked proposed_creation"
+        for task in tasks
+        for file in task.files
+        if not task.proposed_creation and _normalize_repo_path(file) not in allowed_paths
+    ]
+
+
+def _criterion_coverage(
+    phases: list[ExecutionPhase],
+    strategy: Any,
+    request: OptimizationRequest | None,
+) -> dict[str, bool]:
+    done_criteria = [criterion.lower() for phase in phases for criterion in phase.done_criteria]
+    request_criteria = (
+        {criterion.criterion_id: criterion for criterion in request.criteria}
+        if request is not None
+        else {}
+    )
+
+    coverage: dict[str, bool] = {}
+    for impact in strategy.impact_assessment.criterion_impacts:
+        criterion = request_criteria.get(impact.criterion_id)
+        phases_affecting_criterion = [
+            phase for phase in phases if impact.criterion_id in phase.affected_criteria
+        ]
+        if not phases_affecting_criterion:
+            coverage[impact.criterion_id] = False
+            continue
+        if not any(phase.validation_command_ids for phase in phases_affecting_criterion):
+            coverage[impact.criterion_id] = False
+            continue
+        if criterion is None:
+            coverage[impact.criterion_id] = any(
+                impact.criterion_id.lower() in criterion_text
+                for phase in phases_affecting_criterion
+                for criterion_text in [item.lower() for item in phase.done_criteria]
+            )
+            continue
+        criterion_id = criterion.criterion_id.lower()
+        metric_id = criterion.metric_id.lower()
+        target_text = str(criterion.target).lower()
+        coverage[impact.criterion_id] = any(
+            (
+                criterion_id in done
+                and metric_id in done
+                and (
+                    target_text in done
+                    or criterion.direction in done
+                    or criterion.aggregation in done
+                )
+            )
+            or (metric_id in done and target_text in done)
+            for done in done_criteria
+        )
+    return coverage
+
+
+def _grounded_critique(
+    parsed: dict[str, Any],
+    *,
+    phases: list[ExecutionPhase],
+    tasks: list[PlanTask],
+    coverage: dict[str, bool],
+    rollback_reasons: list[str],
+) -> dict[str, Any]:
+    raw_omissions = cast("list[Any]", parsed.get("omissions") or [])
+    raw_concerns = cast("list[Any]", parsed.get("concerns") or [])
+    omissions = [str(item) for item in raw_omissions if str(item).strip()]
+    concerns = [str(item) for item in raw_concerns if str(item).strip()]
+    approved = bool(parsed.get("approved"))
+
+    anchors: set[str] = set()
+    anchors.update(phase.phase_id.lower() for phase in phases)
+    anchors.update(phase.treatment.variable.lower() for phase in phases)
+    anchors.update(task.task_id.lower() for task in tasks)
+    anchors.update(file.lower() for task in tasks for file in task.files)
+    anchors.update(criterion_id.lower() for criterion_id in coverage)
+    anchors.update({"criteria", "criterion", "done_criteria", "rollback", "dependency"})
+    anchors.update(reason.lower() for reason in rollback_reasons)
+
+    def grounded(message: str) -> bool:
+        lower = message.lower()
+        return any(anchor and anchor in lower for anchor in anchors)
+
+    grounded_omissions = [message for message in omissions if grounded(message)]
+    grounded_concerns = [message for message in concerns if grounded(message)]
+    ignored = [
+        message
+        for message in [*omissions, *concerns]
+        if message not in grounded_omissions and message not in grounded_concerns
+    ]
+    return {
+        "omissions": grounded_omissions,
+        "concerns": grounded_concerns,
+        "ignored_ungrounded": ignored,
+        "approved": approved or (not grounded_omissions and not grounded_concerns),
+    }
 
 
 def _one_repair_complete(
@@ -301,6 +735,22 @@ def _check_phase_risk_order(phases: list[ExecutionPhase]) -> tuple[bool, str | N
     )
 
 
+def _check_risk_ladder_order(phases: list[ExecutionPhase]) -> tuple[bool, str | None]:
+    ordered = sorted(phases, key=lambda phase: phase.sequence)
+    tiers = [_RISK_TIER_ORDER[phase.risk_tier] for phase in ordered]
+    if tiers == sorted(tiers):
+        return True, None
+    detail = [
+        f"{phase.phase_id}(seq={phase.sequence}, risk_tier={phase.risk_tier})"
+        for phase in ordered
+    ]
+    return False, (
+        "phase risk_tier ordering violates risk ladder "
+        "experiment_config < prompt < code < architecture: "
+        + " -> ".join(detail)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Shared helpers (mirrors s01_handlers.py/c0_handlers.py)
 # ---------------------------------------------------------------------------
@@ -311,6 +761,7 @@ def _now() -> datetime:
 
 
 _MODEL_BY_TYPE: dict[str, type[ArtifactEnvelope]] = {
+    "OptimizationRequest": cast("type[ArtifactEnvelope]", OptimizationRequest),
     "SelectedSolution": cast("type[ArtifactEnvelope]", SelectedSolution),
     "SolutionPortfolio": cast("type[ArtifactEnvelope]", SolutionPortfolio),
     "SourceSnapshot": cast("type[ArtifactEnvelope]", SourceSnapshot),
@@ -320,6 +771,13 @@ _MODEL_BY_TYPE: dict[str, type[ArtifactEnvelope]] = {
 
 def _read_required(ports: NodePorts, state: OptimizationState, artifact_type: str) -> Any:
     ref = _require_ref(state, artifact_type)
+    return _read_model(ports, state, ref, _MODEL_BY_TYPE[artifact_type])
+
+
+def _read_optional(ports: NodePorts, state: OptimizationState, artifact_type: str) -> Any | None:
+    ref = _try_ref(state, artifact_type)
+    if ref is None:
+        return None
     return _read_model(ports, state, ref, _MODEL_BY_TYPE[artifact_type])
 
 

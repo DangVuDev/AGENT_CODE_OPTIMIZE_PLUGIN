@@ -8,9 +8,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from production_optimizer.adapters.production.deepseek_model_provider import DeepSeekModelProvider
-from production_optimizer.adapters.production.ollama_model_provider import OllamaModelProvider
-from production_optimizer.adapters.production.openai_model_provider import OpenAIModelProvider
+from production_optimizer.adapters.production.generic_model_provider import GenericModelProvider
 from production_optimizer.contracts.platform import ModelCompletionRequest, ModelMessage, ModelRole
 
 _RESPONSE_SCHEMA = {
@@ -39,9 +37,9 @@ def _require_env_key(var_name: str) -> str:
 class _EnvSecretsBroker:
     """Leases a secret straight from the environment for this one smoke test.
 
-    Mirrors `test_anthropic_model_provider.py`'s fake — proves each adapter
-    genuinely goes through `SecretsBroker.lease` (ADR-0002) rather than
-    reading the API key from the environment itself.
+    Mirrors `test_generic_anthropic_model_provider.py`'s fake — proves the generic
+    OpenAI-compatible backend goes through `SecretsBroker.lease` (ADR-0002)
+    rather than reading the API key from the environment itself.
     """
 
     def __init__(self, api_key: str) -> None:
@@ -71,11 +69,12 @@ def _request(*, model_id: str, idempotency_key: str) -> ModelCompletionRequest:
     )
 
 
-def test_openai_model_provider_completes_a_real_request() -> None:
+def test_generic_openai_provider_completes_a_real_request() -> None:
     """One real, billed OpenAI API call — never part of the default `pytest -q` run."""
 
     api_key = _require_env_key("OPENAI_API_KEY")
-    provider = OpenAIModelProvider(
+    provider = GenericModelProvider(
+        provider="openai",
         secrets=_EnvSecretsBroker(api_key), tenant_id="TENANT-SMOKE", secret_ref="openai-api-key"
     )
 
@@ -88,12 +87,16 @@ def test_openai_model_provider_completes_a_real_request() -> None:
     assert result.output_tokens > 0
 
 
-def test_deepseek_model_provider_completes_a_real_request() -> None:
+def test_generic_deepseek_provider_completes_a_real_request() -> None:
     """One real, billed DeepSeek API call — never part of the default `pytest -q` run."""
 
     api_key = _require_env_key("DEEPSEEK_API_KEY")
-    provider = DeepSeekModelProvider(
-        secrets=_EnvSecretsBroker(api_key), tenant_id="TENANT-SMOKE", secret_ref="deepseek-api-key"
+    provider = GenericModelProvider(
+        provider="deepseek",
+        secrets=_EnvSecretsBroker(api_key),
+        tenant_id="TENANT-SMOKE",
+        secret_ref="deepseek-api-key",
+        base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
     )
 
     result = provider.complete(
@@ -122,7 +125,7 @@ def _require_ollama(base_url: str) -> None:
         )
 
 
-def test_ollama_model_provider_completes_a_real_request() -> None:
+def test_generic_ollama_provider_completes_a_real_request() -> None:
     """One real call to a local Ollama (or compatible) server.
 
     Free (no API cost) unlike the hosted adapters' smoke tests, but still
@@ -133,7 +136,7 @@ def test_ollama_model_provider_completes_a_real_request() -> None:
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     _require_ollama(base_url)
     model_id = os.environ.get("OLLAMA_MODEL_ID", "llama3.2")
-    provider = OllamaModelProvider(base_url=base_url)
+    provider = GenericModelProvider(provider="ollama", base_url=base_url)
 
     result = provider.complete(_request(model_id=model_id, idempotency_key="smoke-ollama-1"))
 

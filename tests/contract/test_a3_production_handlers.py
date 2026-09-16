@@ -28,17 +28,31 @@ from production_optimizer.contracts.a1 import (
     SourceReference,
     WorkloadContract,
 )
+from production_optimizer.contracts.a2 import VerificationManifest
 from production_optimizer.contracts.a3 import (
     AnalyzerObservationBranch,
+    ExperimentPhaseTemplate,
     FindingSet,
     ProblemSignalSet,
     RevisionDirective,
     SolutionPortfolio,
     SolutionStrategySet,
+    StrategyDraft,
+    StrategyDraftSet,
+    Treatment,
 )
 from production_optimizer.contracts.artifacts import ArtifactRef
-from production_optimizer.contracts.canonical import canonical_json, sha256_digest
+from production_optimizer.contracts.canonical import (
+    canonical_json,
+    model_content_digest,
+    sha256_digest,
+)
 from production_optimizer.contracts.envelope import ProducerIdentity
+from production_optimizer.contracts.evaluation import (
+    ComposeExecutionContract,
+    ContainerCommandSpec,
+    EvaluationSpec,
+)
 from production_optimizer.contracts.platform import (
     IntentRecord,
     IntentStatus,
@@ -262,6 +276,20 @@ def _state(ref: ArtifactRef) -> dict[str, Any]:
     }
 
 
+def _seed_artifact(store: _MemoryArtifactStore, artifact: Any) -> ArtifactRef:
+    sealed = artifact.model_copy(update={"content_digest": model_content_digest(artifact)})
+    content = canonical_json(sealed)
+    ref = ArtifactRef(
+        artifact_type=sealed.artifact_type,
+        schema_version=sealed.schema_version,
+        artifact_id=sealed.artifact_id,
+        content_digest=sha256_digest(content),
+        uri=f"memory://{sealed.artifact_id}",
+    )
+    store.seed_json(ref, content)
+    return ref
+
+
 def _advance(runtime: NodeRuntime, node_id: str, state: dict[str, Any]) -> dict[str, Any]:
     result = runtime.execute(node_id, state)  # type: ignore[arg-type]
     existing_refs = cast("list[ArtifactRef]", state.get("artifact_refs", []))
@@ -300,6 +328,159 @@ def _stage_ref(state: dict[str, Any], node_id: str, artifact_type: str) -> Artif
         if ref.artifact_type == artifact_type and ref.artifact_id == artifact_id:
             return ref
     raise AssertionError(f"no {artifact_type} produced by {node_id} in state")
+
+
+def test_a3_64_binds_docker_compose_evaluation_validation_command(tmp_path: Path) -> None:
+    store = _MemoryArtifactStore()
+    request = _build_request(allowed_root_id=str(tmp_path), relative_path=".").model_copy(
+        update={
+            "criteria": [
+                Criterion(
+                    criterion_id="primary",
+                    metric_id="p95_latency_ms",
+                    direction="minimize",
+                    target=8.0,
+                    unit="ms",
+                    weight=1.0,
+                    aggregation="p95",
+                )
+            ],
+            "guardrails": [
+                Guardrail(
+                    guardrail_id="correctness",
+                    metric_id="correctness",
+                    operator="eq",
+                    threshold=0.0,
+                    unit="exit_code",
+                )
+            ],
+            "workload": WorkloadContract(
+                workload_id="checkout-http",
+                environment_id="docker-go-1.23",
+                repetitions=5,
+                warmup_runs=1,
+                concurrency=1,
+                cache_state="warm",
+                command_id="checkout-http",
+            ),
+            "evidence_requirements": [
+                EvidenceRequirement(
+                    requirement_id="evidence-primary",
+                    criterion_id="primary",
+                    accepted_source_types={"benchmark", "test", "telemetry"},
+                    minimum_samples=3,
+                    mandatory=True,
+                    metric_id="p95_latency_ms",
+                    canonical_unit="ms",
+                    aggregation="p95",
+                ),
+                EvidenceRequirement(
+                    requirement_id="guardrail-correctness",
+                    criterion_id="guardrail-correctness",
+                    accepted_source_types={"test"},
+                    minimum_samples=1,
+                    mandatory=True,
+                    metric_id="correctness",
+                    canonical_unit="exit_code",
+                    aggregation="verdict",
+                ),
+            ],
+            "execution": ComposeExecutionContract(
+                compose_file="compose.yaml",
+                application_services=["app"],
+                evaluations=[
+                    EvaluationSpec(
+                        evaluation_id="checkout-http",
+                        command=ContainerCommandSpec(
+                            service="app",
+                            argv=["sh", "scripts/evaluate-checkout.sh"],
+                            timeout_seconds=120,
+                        ),
+                        repetitions=5,
+                        warmup_runs=1,
+                        expected_metric_ids={"p95_latency_ms", "correctness"},
+                    )
+                ],
+            ),
+        }
+    )
+    request_ref = _seed_artifact(store, request)
+    verification_ref = _seed_artifact(
+        store,
+        VerificationManifest(
+            artifact_id="verification-empty",
+            tenant_id=_TENANT_ID,
+            case_id=_CASE_ID,
+            created_at=datetime.now(UTC),
+            producer=_TEST_PRODUCER,
+            policy_versions={"a2": "test-v1"},
+            content_digest=_ZERO_DIGEST,
+            commands=[],
+            rejected_commands=[],
+        ),
+    )
+    draft_ref = _seed_artifact(
+        store,
+        StrategyDraftSet(
+            artifact_id=f"{_CASE_ID}-A3.63-pass0-StrategyDraftSet",
+            tenant_id=_TENANT_ID,
+            case_id=_CASE_ID,
+            created_at=datetime.now(UTC),
+            producer=_TEST_PRODUCER,
+            policy_versions={"a3": "test-v1"},
+            content_digest=_ZERO_DIGEST,
+            strategies=[
+                StrategyDraft(
+                    strategy_id="strategy-compose",
+                    finding_ids=["finding-latency"],
+                    title="Reduce checkout latency",
+                    mechanism="Optimize checkout calculation hot path.",
+                    strategy_tradeoffs="Targets latency while preserving correctness.",
+                    phase_templates=[
+                        ExperimentPhaseTemplate(
+                            phase_id="phase-1",
+                            sequence=1,
+                            phase_kind="diagnostic",
+                            treatment=Treatment(
+                                variable="checkout hot path",
+                                before="unknown bottleneck",
+                                after="measured target",
+                            ),
+                        )
+                    ],
+                    risk_ceiling="code",
+                    evidence_ids=["OPT-A3-1:A2.62:checkout-http:1:evidence-primary"],
+                    target_paths=["internal/checkout/service.go"],
+                )
+            ],
+        ),
+    )
+    state = _state(request_ref)
+    state["artifact_refs"] = [request_ref, verification_ref, draft_ref]
+    runtime = build_a3_runtime(
+        ports=NodePorts(artifacts=store, intents=_MemoryIntentLedger(), policy=_AllowPolicy())
+    )
+
+    state = _advance(runtime, "A3.64", state)
+
+    draft_set = _model_from_ref(
+        store, _stage_ref(state, "A3.64-pass0", "StrategyDraftSet"), StrategyDraftSet
+    )
+    strategy = draft_set.strategies[0]
+    assert strategy.eligible
+    assert strategy.gate_reasons == []
+    assert strategy.validation_plan is not None
+    assert strategy.validation_plan.test_command_ids == ["checkout-http"]
+    assert "docker compose -f compose.yaml exec app sh scripts/evaluate-checkout.sh" in (
+        strategy.validation_plan.benchmark_protocol
+    )
+    assert strategy.validation_plan.expected_metric_movements["p95_latency_ms"].startswith(
+        "decrease toward <= 8.0 ms"
+    )
+    assert (
+        strategy.validation_plan.expected_metric_movements["correctness"]
+        == "must remain eq 0.0 exit_code"
+    )
 
 
 @contextmanager

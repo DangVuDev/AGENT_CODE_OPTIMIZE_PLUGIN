@@ -10,6 +10,7 @@ shared across processes -- production code uses the real adapters in
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 import socket
@@ -25,8 +26,6 @@ from pydantic import TypeAdapter
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import sha256_digest
 from production_optimizer.contracts.platform import (
-    DeferredModelCallRecord,
-    DeferredModelCallStatus,
     IntentRecord,
     IntentStatus,
     ModelCompletionRequest,
@@ -141,105 +140,6 @@ class MemoryIntentLedger:
         return updated
 
 
-class MemoryModelCallDeferralStore:
-    def __init__(self) -> None:
-        self._records: dict[tuple[str, str], DeferredModelCallRecord] = {}
-
-    def defer(self, record: DeferredModelCallRecord) -> DeferredModelCallRecord:
-        existing = self._records.get((record.tenant_id, record.deferral_id))
-        if existing is not None and existing.status is DeferredModelCallStatus.SUCCEEDED:
-            return existing
-        self._records[(record.tenant_id, record.deferral_id)] = record
-        return record
-
-    def get(self, *, tenant_id: str, deferral_id: str) -> DeferredModelCallRecord | None:
-        return self._records.get((tenant_id, deferral_id))
-
-    def claim_due(
-        self, *, tenant_id: str, lease_owner: str, lease_seconds: int, limit: int
-    ) -> list[DeferredModelCallRecord]:
-        if limit <= 0:
-            raise ValueError("limit must be positive")
-        if lease_seconds <= 0:
-            raise ValueError("lease_seconds must be positive")
-        now = datetime.now(UTC)
-        claimed: list[DeferredModelCallRecord] = []
-        for key, record in sorted(
-            self._records.items(), key=lambda item: item[1].available_at
-        ):
-            if len(claimed) >= limit:
-                break
-            if record.tenant_id != tenant_id:
-                continue
-            due_scheduled = (
-                record.status is DeferredModelCallStatus.SCHEDULED
-                and record.available_at <= now
-            )
-            expired_running = (
-                record.status is DeferredModelCallStatus.RUNNING
-                and record.lease_expires_at is not None
-                and record.lease_expires_at <= now
-            )
-            if not due_scheduled and not expired_running:
-                continue
-            updated = record.model_copy(
-                update={
-                    "status": DeferredModelCallStatus.RUNNING,
-                    "lease_owner": lease_owner,
-                    "lease_expires_at": now + timedelta(seconds=lease_seconds),
-                    "attempts": record.attempts + 1,
-                    "updated_at": now,
-                }
-            )
-            self._records[key] = updated
-            claimed.append(updated)
-        return claimed
-
-    def mark_succeeded(self, *, tenant_id: str, deferral_id: str) -> DeferredModelCallRecord:
-        return self._update_status(
-            tenant_id=tenant_id,
-            deferral_id=deferral_id,
-            status=DeferredModelCallStatus.SUCCEEDED,
-        )
-
-    def mark_failed(
-        self, *, tenant_id: str, deferral_id: str, error_ref: str
-    ) -> DeferredModelCallRecord:
-        return self._update_status(
-            tenant_id=tenant_id,
-            deferral_id=deferral_id,
-            status=DeferredModelCallStatus.FAILED,
-            last_error_ref=error_ref,
-        )
-
-    def healthcheck(self) -> bool:
-        return True
-
-    def _update_status(
-        self,
-        *,
-        tenant_id: str,
-        deferral_id: str,
-        status: DeferredModelCallStatus,
-        last_error_ref: str | None = None,
-    ) -> DeferredModelCallRecord:
-        key = (tenant_id, deferral_id)
-        record = self._records.get(key)
-        if record is None:
-            raise ValueError(f"no model call deferral found for {tenant_id=} {deferral_id=}")
-        updated = record.model_copy(
-            update={
-                "status": status,
-                "lease_owner": None,
-                "lease_expires_at": None,
-                "last_error_ref": last_error_ref,
-                "updated_at": datetime.now(UTC),
-            }
-        )
-        self._records[key] = updated
-        return updated
-
-
 class AllowPolicy:
     """Fixed allow-everything `PolicyPort` for a one-off local script run.
 
@@ -269,7 +169,6 @@ class ControlPlane:
     artifacts: Any
     checkpointer: Any
     intents: Any
-    model_deferrals: Any
     policy: Any
     telemetry: Any
     policy_version: str
@@ -341,7 +240,6 @@ def build_control_plane(*, service_name: str = "production-optimizer") -> Contro
     policy_version = os.environ.get("OPTIMIZER_POLICY_VERSION", "bootstrap-v1")
 
     intents, intents_durable = _build_intents(mode, notes)
-    model_deferrals, model_deferrals_durable = _build_model_deferrals(mode, notes)
     checkpointer, checkpointer_durable = _build_checkpointer(mode, notes)
     artifacts, artifacts_durable = _build_artifacts(mode, notes)
     telemetry = _build_telemetry(mode, notes, service_name=service_name)
@@ -355,16 +253,10 @@ def build_control_plane(*, service_name: str = "production-optimizer") -> Contro
         artifacts=artifacts,
         checkpointer=checkpointer,
         intents=intents,
-        model_deferrals=model_deferrals,
         policy=policy,
         telemetry=telemetry,
         policy_version=policy_version,
-        durable=(
-            intents_durable
-            and artifacts_durable
-            and model_deferrals_durable
-            and checkpointer_durable
-        ),
+        durable=(intents_durable and artifacts_durable and checkpointer_durable),
         notes=tuple(notes),
     )
 
@@ -397,38 +289,6 @@ def _build_intents(mode: str, notes: list[str]) -> tuple[Any, bool]:
 
     notes.append("intents: PostgresIntentLedger")
     return ledger, True
-
-
-def _build_model_deferrals(mode: str, notes: list[str]) -> tuple[Any, bool]:
-    dsn = os.environ.get("OPTIMIZER_DATABASE_DSN", "").strip()
-    if mode == "memory" or not dsn:
-        if mode == "durable":
-            raise RuntimeError(
-                "OPTIMIZER_CONTROL_PLANE=durable requires OPTIMIZER_DATABASE_DSN to be set"
-            )
-        notes.append("model deferrals: in-memory (set OPTIMIZER_DATABASE_DSN for durable retry)")
-        return MemoryModelCallDeferralStore(), False
-
-    if mode == "auto" and not _endpoint_reachable(dsn, default_port=5432):
-        notes.append("model deferrals: in-memory (Postgres not answering)")
-        return MemoryModelCallDeferralStore(), False
-
-    from production_optimizer.adapters.production import PostgresModelCallDeferralStore
-
-    try:
-        store = PostgresModelCallDeferralStore(
-            dsn, connect_timeout_seconds=_DURABLE_CONNECT_TIMEOUT_SECONDS
-        )
-    except Exception as error:
-        if mode == "durable":
-            raise RuntimeError(f"model deferral store is unreachable: {error}") from error
-        notes.append(
-            f"model deferrals: in-memory (Postgres unreachable: {type(error).__name__})"
-        )
-        return MemoryModelCallDeferralStore(), False
-
-    notes.append("model deferrals: PostgresModelCallDeferralStore")
-    return store, True
 
 
 def _build_checkpointer(mode: str, notes: list[str]) -> tuple[Any | None, bool]:
@@ -679,20 +539,127 @@ class LocalScriptedModelProvider:
         }
 
 
-def select_model_provider(
-    *, tenant_id: str, thread_id: str | None = None, deferrals: Any | None = None
-) -> tuple[Any, str]:
-    """Select approved model providers behind a resilient gateway.
+_PROVIDER_CHOICES = (
+    "auto",
+    "anthropic",
+    "openai",
+    "gemini",
+    "deepseek",
+    "ollama",
+    "local-scripted",
+)
+_REAL_PROVIDER_CHOICES = ("anthropic", "openai", "gemini", "deepseek", "ollama")
+_PROVIDER_DEFAULT_MODELS = {
+    "anthropic": "claude-sonnet-5",
+    "openai": "gpt-4o-mini",
+    "gemini": "gemini-3.6-flash",
+    "deepseek": "deepseek-chat",
+    "ollama": "llama3.2",
+}
+_PROVIDER_MODEL_ENV = {
+    "anthropic": "ANTHROPIC_MODEL_ID",
+    "openai": "OPENAI_MODEL_ID",
+    "gemini": "GEMINI_MODEL_ID",
+    "deepseek": "DEEPSEEK_MODEL_ID",
+    "ollama": "OLLAMA_MODEL_ID",
+}
+_PROVIDER_KEY_ENV = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+}
+_PROVIDER_SECRET_REF = {
+    "anthropic": "anthropic-api-key",
+    "openai": "openai-api-key",
+    "gemini": "gemini-api-key",
+    "deepseek": "deepseek-api-key",
+}
+_PROVIDER_BASE_URL_ENV = {
+    "deepseek": "DEEPSEEK_BASE_URL",
+    "ollama": "OLLAMA_BASE_URL",
+}
+_PROVIDER_DEFAULT_BASE_URL = {
+    "deepseek": "https://api.deepseek.com",
+    "ollama": "http://localhost:11434/v1",
+}
 
-    Each real provider first gets a bounded `RetryingModelProvider`; the
-    `ResilientModelGateway` above those wrappers opens a circuit after an
-    exhausted transient failure, then tries the next configured provider.
-    When none can serve, it raises `DeferredModelCallError`, which CLI/UI
-    entrypoints can surface as a clean retry-later halt.
+
+def add_model_runtime_args(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_argument_group(
+        "model runtime",
+        "Controls the LLM provider/model used by A1/A2/A3/Sxx model calls.",
+    )
+    group.add_argument(
+        "--model-provider",
+        choices=_PROVIDER_CHOICES,
+        default="auto",
+        help=(
+            "Provider to use for model calls. Default 'auto' uses --model-provider-order "
+            "or OPTIMIZER_MODEL_PROVIDER_ORDER and available credentials."
+        ),
+    )
+    group.add_argument(
+        "--model-id",
+        default=None,
+        help="Provider-specific model id for --model-provider, e.g. gemini-3.6-flash.",
+    )
+    group.add_argument(
+        "--model-base-url",
+        default=None,
+        help="Base URL for OpenAI-compatible providers such as ollama/deepseek.",
+    )
+    group.add_argument(
+        "--model-provider-order",
+        default=None,
+        help=(
+            "Comma-separated provider order for auto mode, e.g. gemini,openai,ollama. "
+            "Overrides OPTIMIZER_MODEL_PROVIDER_ORDER for this run."
+        ),
+    )
+def model_selection_kwargs_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "provider_name": args.model_provider,
+        "model_id": args.model_id,
+        "base_url": args.model_base_url,
+        "provider_order": args.model_provider_order,
+    }
+
+
+def select_model_provider(
+    *,
+    tenant_id: str,
+    thread_id: str | None = None,
+    provider_name: str | None = None,
+    model_id: str | None = None,
+    base_url: str | None = None,
+    provider_order: str | None = None,
+) -> tuple[Any, str]:
+    """Select exactly one approved model provider -- no retry, no fallback.
+
+    A failed `complete()` call raises `ModelProviderError` immediately (see
+    `adapters/production/model_provider_errors.py`); this function's only
+    job is picking *which* provider/model to construct, once, up front.
+    `--model-provider auto` (the default) walks `--model-provider-order`/
+    `OPTIMIZER_MODEL_PROVIDER_ORDER` and picks the first one with a usable
+    credential (or a reachable local Ollama) -- that is a one-time startup
+    choice, not an automatic switch made after a call fails at runtime.
     """
 
-    raw_candidates = _select_raw_model_provider_candidates(tenant_id=tenant_id)
-    if not raw_candidates:
+    del thread_id  # kept for call-site compatibility; unused without a gateway
+
+    if provider_name == "local-scripted":
+        print("[model] using LocalScriptedModelProvider because --model-provider local-scripted")
+        return LocalScriptedModelProvider(), "local-scripted"
+
+    candidate = _select_model_provider_candidate(
+        tenant_id=tenant_id,
+        provider_name=provider_name or "auto",
+        model_id=model_id,
+        base_url=base_url,
+        provider_order=provider_order,
+    )
+    if candidate is None:
         print(
             "[model] no ANTHROPIC_API_KEY/OPENAI_API_KEY/GEMINI_API_KEY/DEEPSEEK_API_KEY set "
             "and no local Ollama server reachable -- using LocalScriptedModelProvider "
@@ -701,172 +668,120 @@ def select_model_provider(
         )
         return LocalScriptedModelProvider(), "local-scripted"
 
-    from production_optimizer.adapters.production import (
-        ModelGatewayEvent,
-        ModelProviderCandidate,
-        ResilientModelGateway,
-        RetryingModelProvider,
-    )
+    _, provider, selected_model_id = candidate
+    return provider, selected_model_id
 
-    def _announce_retry(
-        provider_name: str, attempt: int, delay: float, error: BaseException
-    ) -> None:
-        print(
-            f"[model:{provider_name}] {type(error).__name__} on attempt {attempt} "
-            f"({error}); retrying in {delay:.1f}s"
-        )
 
-    def _announce_gateway(event: ModelGatewayEvent) -> None:
-        if event.event_type not in {"fallback", "fallback_success", "circuit_opened"}:
-            return
-        print(
-            f"[model-gateway] {event.event_type}: {event.provider_name}/"
-            f"{event.model_id} {event.detail}"
-        )
-
-    candidates = [
-        ModelProviderCandidate(
-            provider_name=name,
-            provider=RetryingModelProvider(
-                provider,
-                on_retry=lambda attempt, delay, error, provider_name=name: _announce_retry(
-                    provider_name, attempt, delay, error
-                ),
-            ),
+def _select_model_provider_candidate(
+    *,
+    tenant_id: str,
+    provider_name: str,
+    model_id: str | None,
+    base_url: str | None,
+    provider_order: str | None,
+) -> tuple[str, Any, str] | None:
+    if provider_name != "auto":
+        candidate = _provider_candidate(
+            tenant_id=tenant_id,
+            provider_name=provider_name,
             model_id=model_id,
+            base_url=base_url,
+            explicit=True,
         )
-        for name, provider, model_id in raw_candidates
-    ]
-    primary = candidates[0]
-    if len(candidates) == 1:
-        print(f"[model-gateway] primary={primary.provider_name}/{primary.model_id}; no fallback")
-    else:
-        chain = ", ".join(f"{c.provider_name}/{c.model_id}" for c in candidates)
-        print(f"[model-gateway] approved provider chain: {chain}")
-    return (
-        ResilientModelGateway(
-            candidates,
-            tenant_id=tenant_id,
-            thread_id=thread_id,
-            deferrals=deferrals,
-            on_event=_announce_gateway,
-        ),
-        primary.model_id,
+        assert candidate is not None
+        return candidate
+
+    order_source = provider_order or os.environ.get(
+        "OPTIMIZER_MODEL_PROVIDER_ORDER", "anthropic,openai,gemini,deepseek,ollama"
     )
-
-
-def _select_raw_model_provider_candidates(*, tenant_id: str) -> list[tuple[str, Any, str]]:
-    order = [
-        item.strip().lower()
-        for item in os.environ.get(
-            "OPTIMIZER_MODEL_PROVIDER_ORDER", "anthropic,openai,gemini,deepseek,ollama"
-        ).split(",")
-        if item.strip()
-    ]
-    builders = {
-        "anthropic": _anthropic_candidate,
-        "openai": _openai_candidate,
-        "gemini": _gemini_candidate,
-        "deepseek": _deepseek_candidate,
-        "ollama": _ollama_candidate,
-    }
-    candidates: list[tuple[str, Any, str]] = []
-    for provider_name in order:
-        builder = builders.get(provider_name)
-        if builder is None:
+    order = [item.strip().lower() for item in order_source.split(",") if item.strip()]
+    for ordered_provider in order:
+        if ordered_provider not in _REAL_PROVIDER_CHOICES:
             continue
-        candidate = builder(tenant_id=tenant_id)
+        candidate = _provider_candidate(
+            tenant_id=tenant_id,
+            provider_name=ordered_provider,
+            model_id=model_id if ordered_provider == order[0] else None,
+            base_url=base_url if ordered_provider == order[0] else None,
+            explicit=False,
+        )
         if candidate is not None:
-            candidates.append(candidate)
-    return candidates
+            return candidate
+    return None
 
 
-def _anthropic_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
-    if not (api_key := os.environ.get("ANTHROPIC_API_KEY")):
+def _provider_candidate(
+    *,
+    tenant_id: str,
+    provider_name: str,
+    model_id: str | None,
+    base_url: str | None,
+    explicit: bool,
+) -> tuple[str, Any, str] | None:
+    if provider_name not in _REAL_PROVIDER_CHOICES:
+        if explicit:
+            raise ValueError(f"unsupported model provider: {provider_name}")
         return None
-    from production_optimizer.adapters.production import AnthropicModelProvider
 
-    model_id = os.environ.get("ANTHROPIC_MODEL_ID", "claude-sonnet-5")
-    print(f"[model] approved AnthropicModelProvider (ANTHROPIC_API_KEY found), model={model_id}")
+    from production_optimizer.adapters.production import GenericModelProvider
+
+    selected_model = (
+        model_id
+        or os.environ.get(_PROVIDER_MODEL_ENV[provider_name])
+        or _PROVIDER_DEFAULT_MODELS[provider_name]
+    )
+    selected_base_url = (
+        base_url
+        or os.environ.get(_PROVIDER_BASE_URL_ENV.get(provider_name, ""))
+        or _PROVIDER_DEFAULT_BASE_URL.get(provider_name)
+    )
+
+    if provider_name == "ollama":
+        if not explicit and not _ollama_reachable(selected_base_url or "http://localhost:11434/v1"):
+            return None
+        print(
+            f"[model] approved GenericModelProvider(provider=ollama), "
+            f"model={selected_model}, base_url={selected_base_url}"
+        )
+        return (
+            "ollama",
+            GenericModelProvider(provider="ollama", base_url=selected_base_url),
+            selected_model,
+        )
+
+    api_key = os.environ.get(_PROVIDER_KEY_ENV[provider_name])
+    if not api_key:
+        if explicit:
+            raise RuntimeError(
+                f"--model-provider {provider_name} requires {_PROVIDER_KEY_ENV[provider_name]}"
+            )
+        return None
+    print(
+        f"[model] approved GenericModelProvider(provider={provider_name}), "
+        f"model={selected_model}"
+    )
     return (
-        "anthropic",
-        AnthropicModelProvider(
+        provider_name,
+        GenericModelProvider(
+            provider=provider_name,  # type: ignore[arg-type]
             secrets=EnvSecretsBroker(api_key),
             tenant_id=tenant_id,
-            secret_ref="anthropic-api-key",
+            secret_ref=_PROVIDER_SECRET_REF[provider_name],
+            base_url=selected_base_url,
         ),
-        model_id,
+        selected_model,
     )
 
 
-def _openai_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
-    if not (api_key := os.environ.get("OPENAI_API_KEY")):
-        return None
-    from production_optimizer.adapters.production import OpenAIModelProvider
-
-    model_id = os.environ.get("OPENAI_MODEL_ID", "gpt-4o-mini")
-    print(f"[model] approved OpenAIModelProvider (OPENAI_API_KEY found), model={model_id}")
-    return (
-        "openai",
-        OpenAIModelProvider(
-            secrets=EnvSecretsBroker(api_key), tenant_id=tenant_id, secret_ref="openai-api-key"
-        ),
-        model_id,
-    )
-
-
-def _gemini_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
-    if not (api_key := os.environ.get("GEMINI_API_KEY")):
-        return None
-    from production_optimizer.adapters.production import GeminiModelProvider
-
-    model_id = os.environ.get("GEMINI_MODEL_ID", "gemini-2.5-flash")
-    print(f"[model] approved GeminiModelProvider (GEMINI_API_KEY found), model={model_id}")
-    return (
-        "gemini",
-        GeminiModelProvider(
-            secrets=EnvSecretsBroker(api_key), tenant_id=tenant_id, secret_ref="gemini-api-key"
-        ),
-        model_id,
-    )
-
-
-def _deepseek_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
-    if not (api_key := os.environ.get("DEEPSEEK_API_KEY")):
-        return None
-    from production_optimizer.adapters.production import DeepSeekModelProvider
-
-    model_id = os.environ.get("DEEPSEEK_MODEL_ID", "deepseek-chat")
-    print(f"[model] approved DeepSeekModelProvider (DEEPSEEK_API_KEY found), model={model_id}")
-    return (
-        "deepseek",
-        DeepSeekModelProvider(
-            secrets=EnvSecretsBroker(api_key),
-            tenant_id=tenant_id,
-            secret_ref="deepseek-api-key",
-        ),
-        model_id,
-    )
-
-
-def _ollama_candidate(*, tenant_id: str) -> tuple[str, Any, str] | None:
-    del tenant_id
-    ollama_base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-    parsed = urlsplit(ollama_base_url)
+def _ollama_reachable(base_url: str) -> bool:
+    parsed = urlsplit(base_url)
     try:
         with socket.create_connection(
             (parsed.hostname or "localhost", parsed.port or 11434), timeout=0.5
         ):
-            from production_optimizer.adapters.production import OllamaModelProvider
-
-            model_id = os.environ.get("OLLAMA_MODEL_ID", "llama3.2")
-            print(
-                f"[model] approved OllamaModelProvider (server reachable at "
-                f"{ollama_base_url}), model={model_id}"
-            )
-            return "ollama", OllamaModelProvider(base_url=ollama_base_url), model_id
+            return True
     except OSError:
-        return None
+        return False
 
 
 def read_model(
