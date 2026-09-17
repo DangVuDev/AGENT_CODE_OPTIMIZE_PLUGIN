@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -285,6 +286,7 @@ def _strategy(*, before: str, after: str) -> SolutionStrategy:
 def _seed_case(
     store: _MemoryArtifactStore, *, repo: Path, before: str, after: str,
     baseline_unit_failing: bool, baseline_lint_failing: bool = False,
+    declares_pytest_cov: bool = False, interpreter: str = "python",
 ) -> list[ArtifactRef]:
     fingerprint = sha256_digest(canonical_json({"case_id": _CASE_ID, "origin": "manual"}))
     request = OptimizationRequest(
@@ -335,11 +337,11 @@ def _seed_case(
         languages={"python": 1.0}, modules=["."], manifest_files=[], test_roots=["tests"],
         commands=[
             RepositoryCommand(
-                command_id="unit-1", argv=["python", "-m", "pytest", "tests"],
+                command_id="unit-1", argv=[interpreter, "-m", "pytest", "tests"],
                 working_directory=str(repo), kind="unit", source="pyproject_toml",
             )
         ],
-        tool_coverage={},
+        tool_coverage={"pytest_cov": 1.0} if declares_pytest_cov else {},
     )
     manifest_ref = _seal_and_store(store, manifest)
 
@@ -388,7 +390,7 @@ def _seed_case(
     selected_ref = _seal_and_store(store, selected)
 
     phase = ExecutionPhase(
-        phase_id="phase-1", sequence=1, phase_kind="implementation",
+        phase_id="phase-1", sequence=1, phase_kind="implementation", risk_tier="code",
         treatment=PlanTreatment(variable="compute_body", before=before, after=after),
         done_criteria=["correctness improves"], rollback_command="git checkout -- app.py",
         rollback_trigger="tests regress", rollback_deadline_seconds=600,
@@ -468,6 +470,65 @@ def test_s04_passes_a_correct_patch_and_seals_a_real_report(tmp_path: Path) -> N
     # so it must still be here; this test stops before S05, so it cleans up
     # manually instead of leaking a temp directory.
     assert workspace_path.exists()
+    import shutil
+
+    shutil.rmtree(workspace_path.parent, ignore_errors=True)
+
+
+def test_s04_reports_no_coverage_when_pytest_cov_is_not_declared(tmp_path: Path) -> None:
+    """`coverage_percent` must stay honestly `None`, never fabricated, when
+    the repository doesn't actually declare `pytest-cov` -- the default
+    shape every other test in this file already exercises implicitly; this
+    one asserts it explicitly."""
+
+    repo = _seed_repo(tmp_path, initial_expr="1 + 1")
+    store = _MemoryArtifactStore()
+    refs = _seed_case(
+        store, repo=repo, before="1 + 1", after="2 + 2", baseline_unit_failing=True,
+    )
+    state = _run_s03(store, _state(refs))
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+
+    runtime = build_s04_runtime(ports=_ports(store))
+    for node_id in S04_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    report = _model_from_ref(store, _ref_by_type(state, "VerificationReport"), VerificationReport)
+    unit_result = next(r for r in report.check_results if r.kind == "unit")
+    assert unit_result.coverage_percent is None
+
+    import shutil
+
+    shutil.rmtree(workspace_path.parent, ignore_errors=True)
+
+
+def test_s04_reports_a_real_coverage_percent_when_pytest_cov_is_declared(tmp_path: Path) -> None:
+    """When the manifest actually declares `pytest-cov`
+    (`RepositoryManifest.tool_coverage`, set at real A2.30 detection), S04's
+    unit check appends real `--cov` flags and parses a real percentage out
+    of pytest-cov's own terminal report -- the spec's own S04.90 row
+    ("Store commands, outputs, versions, durations, coverage and
+    decision")."""
+
+    repo = _seed_repo(tmp_path, initial_expr="1 + 1")
+    store = _MemoryArtifactStore()
+    refs = _seed_case(
+        store, repo=repo, before="1 + 1", after="2 + 2", baseline_unit_failing=True,
+        declares_pytest_cov=True, interpreter=sys.executable,
+    )
+    state = _run_s03(store, _state(refs))
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+
+    runtime = build_s04_runtime(ports=_ports(store))
+    for node_id in S04_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    assert state["node_routes"]["S04.80"] == "continue"
+    report = _model_from_ref(store, _ref_by_type(state, "VerificationReport"), VerificationReport)
+    unit_result = next(r for r in report.check_results if r.kind == "unit")
+    assert unit_result.coverage_percent is not None
+    assert 0.0 <= unit_result.coverage_percent <= 100.0
+
     import shutil
 
     shutil.rmtree(workspace_path.parent, ignore_errors=True)

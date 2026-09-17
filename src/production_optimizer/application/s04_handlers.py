@@ -20,6 +20,25 @@ enforced by `VerificationReport`'s own validator, not merely asserted
 here). A mandatory-check failure routes `revision` -- `s04_handlers` cannot
 itself send the graph back to S03; `orchestration/shared_workflow.py`'s
 outer wiring does that, mirroring B2.52's `revision` edge back to B2.22.
+
+`CheckResult.coverage_percent` is real, not fabricated, when the manifest
+declares `pytest-cov` (`RepositoryManifest.tool_coverage["pytest_cov"]`,
+detected at real A2.30): `s04_worker_capabilities` appends real `--cov`
+flags to the unit-test command and parses a real percentage out of
+pytest-cov's own terminal report. `None` otherwise -- per the spec's own
+S04.90 row ("Store commands, outputs, versions, durations, coverage and
+decision") and this codebase's "honest unavailable" convention.
+
+Known gap versus the spec's S04.70 row: it lists five failure
+classifications (patch regression, baseline-existing failure, flaky test,
+environment failure, tool failure); `FailureAttribution.classification`
+already declares all five as a `Literal`, but this milestone's `_s04_70`
+only ever assigns `patch_regression`/`baseline_existing_failure` --
+`flaky`/`environment_failure`/`tool_failure` require either a real repeat
+run (to distinguish flaky from a real regression) or output-pattern
+heuristics this milestone does not implement. An explicit, acknowledged
+gap, not a hidden one (mirrors B1.32-35 and S03.70's own "license issues"
+gap).
 """
 
 from __future__ import annotations
@@ -284,6 +303,7 @@ def _run_one_check(
         passed=exit_code == 0,
         duration_seconds=duration,
         output_tail=tail[-_OUTPUT_TAIL_CHARS:],
+        coverage_percent=cast("float | None", payload.get("coverage_percent")),
     )
 
 

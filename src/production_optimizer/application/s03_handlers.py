@@ -15,14 +15,28 @@ the source snapshot has a git revision, else an honest plain directory copy
 before/after text substitution (risk_ceiling == "experiment_config", no
 LLM) or runs the real, bounded tool-loop agent
 (`application.s03_agent_loop.run_agent_loop`) for `prompt`/`code`/
-`architecture` risk. S03.60/70 are real, filesystem-verified checks (byte
-comparison against the untouched source root; regex-based secret/lockfile/
-migration/binary detection) -- never a hardcoded pass. S03.80 is the only
-node that seals `PatchArtifact`/`ExecutionProvenance`, using a real
-`difflib.unified_diff` (works identically for a git worktree or a plain
-copy, unlike `git diff`) and a phase-scoped artifact_id (mirrors
-`a3_handlers._stage_envelope`) so a later multi-phase milestone can extend
-this without an artifact_refs collision.
+`architecture` risk. S03.60/70 are real, filesystem-verified checks --
+never a hardcoded pass. S03.60 enforces scope at two levels per the spec's
+own row ("Compare changed paths/symbols/dependencies and treatment
+semantics with plan"): byte comparison against the untouched source root
+for changed *paths*, plus an `ast`-based diff of top-level function/class/
+method definitions for changed *symbols* inside an authorized Python file
+whose tasks declared `PlanTask.symbols` -- a symbol edit S03.50 was never
+authorized for is caught even though the file itself was in scope, which
+path-diffing alone cannot detect. S03.70 does regex-based secret/lockfile/
+migration/binary detection. S03.80 is the only node that seals
+`PatchArtifact`/`ExecutionProvenance`, using a real `difflib.unified_diff`
+(works identically for a git worktree or a plain copy, unlike `git diff`)
+and a phase-scoped artifact_id (mirrors `a3_handlers._stage_envelope`) so a
+later multi-phase milestone can extend this without an artifact_refs
+collision.
+
+Known gap versus the spec's S03.70 row: it also lists "license issues"
+among what sanitation should catch (`SanitationFinding.kind` already
+declares a `"license"` variant in `contracts/s03.py`), but no detector for
+it exists yet here -- an explicit, acknowledged gap, not a hidden one
+(mirrors how B1.32-35's query adapters are documented as not-yet-wired
+rather than silently absent).
 """
 
 from __future__ import annotations

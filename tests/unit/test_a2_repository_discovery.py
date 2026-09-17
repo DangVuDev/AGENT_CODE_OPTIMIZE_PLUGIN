@@ -12,6 +12,7 @@ from production_optimizer.application.a2_handlers.shared import (
     _declared_tools_outside_pyproject,
     _repository_interpreter,
     _requirements_declare_pytest_benchmark,
+    _requirements_declare_pytest_cov,
 )
 
 
@@ -89,3 +90,20 @@ def test_ignores_pytest_benchmark_mentioned_only_in_a_comment(tmp_path: Path) ->
 
 def test_no_requirements_file_means_not_declared(tmp_path: Path) -> None:
     assert _requirements_declare_pytest_benchmark(tmp_path) is False
+
+
+def test_requirements_dependency_match_is_exact_token_not_prefix(tmp_path: Path) -> None:
+    """A package name that merely starts with `pytest-cov` (e.g. a
+    hypothetical `pytest-covfefe`) must not false-positive-match -- the
+    match is on the exact package-name token, mirroring
+    `_pyproject_declares_dependency`'s own exact-match splitting."""
+
+    (tmp_path / "requirements.txt").write_text("pytest-covfefe==1.0\n", encoding="utf-8")
+
+    assert _requirements_declare_pytest_cov(tmp_path) is False
+
+
+def test_requirements_declares_pytest_cov_with_extras_and_version(tmp_path: Path) -> None:
+    (tmp_path / "requirements.txt").write_text("pytest-cov[toml]>=4.0\n", encoding="utf-8")
+
+    assert _requirements_declare_pytest_cov(tmp_path) is True

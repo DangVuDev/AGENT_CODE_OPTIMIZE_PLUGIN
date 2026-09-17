@@ -564,7 +564,6 @@ def _criterion_coverage(
     strategy: Any,
     request: OptimizationRequest | None,
 ) -> dict[str, bool]:
-    done_criteria = [criterion.lower() for phase in phases for criterion in phase.done_criteria]
     request_criteria = (
         {criterion.criterion_id: criterion for criterion in request.criteria}
         if request is not None
@@ -583,11 +582,16 @@ def _criterion_coverage(
         if not any(phase.validation_command_ids for phase in phases_affecting_criterion):
             coverage[impact.criterion_id] = False
             continue
+        # Only the phases that actually declare this criterion as affected
+        # may contribute their `done_criteria` wording toward covering it --
+        # an unrelated phase's text must never leak in and credit a
+        # criterion it never claimed to affect.
+        phase_done_criteria = [
+            text.lower() for phase in phases_affecting_criterion for text in phase.done_criteria
+        ]
         if criterion is None:
             coverage[impact.criterion_id] = any(
-                impact.criterion_id.lower() in criterion_text
-                for phase in phases_affecting_criterion
-                for criterion_text in [item.lower() for item in phase.done_criteria]
+                impact.criterion_id.lower() in done for done in phase_done_criteria
             )
             continue
         criterion_id = criterion.criterion_id.lower()
@@ -604,7 +608,7 @@ def _criterion_coverage(
                 )
             )
             or (metric_id in done and target_text in done)
-            for done in done_criteria
+            for done in phase_done_criteria
         )
     return coverage
 
@@ -643,11 +647,17 @@ def _grounded_critique(
         for message in [*omissions, *concerns]
         if message not in grounded_omissions and message not in grounded_concerns
     ]
+    # `approved` is the model's own explicit verdict (`_CRITIQUE_SCHEMA` marks
+    # it required, so a schema-valid parse always yields a real True/False,
+    # never an ambiguous "unset" state) -- it must never be overridden here.
+    # Grounding only decides which omissions/concerns are *displayed* as
+    # actionable; an explicit rejection stays a rejection even when none of
+    # its concerns happen to match this function's anchor-keyword vocabulary.
     return {
         "omissions": grounded_omissions,
         "concerns": grounded_concerns,
         "ignored_ungrounded": ignored,
-        "approved": approved or (not grounded_omissions and not grounded_concerns),
+        "approved": approved,
     }
 
 

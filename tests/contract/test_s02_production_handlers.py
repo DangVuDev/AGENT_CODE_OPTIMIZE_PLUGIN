@@ -139,12 +139,14 @@ class _ScriptedPlanProvider:
         bad_phase_order: bool = False,
         forced_scope_file: str | None = None,
         critic_payload: dict[str, Any] | None = None,
+        forced_phase_risk_tier: str | None = None,
     ) -> None:
         self.calls: list[ModelCompletionRequest] = []
         self._cover_criterion = cover_criterion
         self._bad_phase_order = bad_phase_order
         self._forced_scope_file = forced_scope_file
         self._critic_payload = critic_payload
+        self._forced_phase_risk_tier = forced_phase_risk_tier
 
     def complete(self, request: ModelCompletionRequest) -> ModelCompletionResult:
         self.calls.append(request)
@@ -183,6 +185,11 @@ class _ScriptedPlanProvider:
                 "phase_id": "phase-1",
                 "sequence": 1,
                 "phase_kind": "implementation",
+                **(
+                    {"risk_tier": self._forced_phase_risk_tier}
+                    if self._forced_phase_risk_tier is not None
+                    else {}
+                ),
                 "treatment": {"variable": "threshold", "before": "100", "after": "50"},
                 "done_criteria": done_criteria,
                 "rollback_command": f"git checkout -- {scope_file}",
@@ -499,6 +506,7 @@ def test_s02_auto_approves_and_seals_a_real_plan_for_a_low_risk_strategy(tmp_pat
         "phase_ordering_by_risk": True,
         "risk_ladder_ordering": True,
         "paths_resolve": True,
+        "no_silent_path_repairs": True,
         "criteria_coverage": True,
         "rollback_defined": True,
         "critic_approved": True,
@@ -515,7 +523,17 @@ def test_s02_auto_approves_and_seals_a_real_plan_for_a_low_risk_strategy(tmp_pat
     assert quality.task_list_digest == task_list.content_digest
 
 
-def test_s02_repairs_unique_model_invented_path_to_real_repository_path(tmp_path: Any) -> None:
+def test_s02_81_blocks_a_silently_repaired_hallucinated_path(tmp_path: Any) -> None:
+    """S02.50's `_repair_task_file_paths` still normalizes a hallucinated
+    path to the one real file whose basename/suffix uniquely matches it
+    (`src/checkout/service.go` -> the real `internal/checkout/service.go`)
+    -- but that repair must now be a real, visible, blocking quality
+    finding rather than something `paths_resolve` alone silently accepts,
+    since the model asserted a path that never actually existed. (Renamed
+    and rewritten from `test_s02_repairs_unique_model_invented_path_to_
+    real_repository_path`, which previously asserted the bug's own
+    symptom: a silent repair reaching S02.90 as `continue`.)"""
+
     store = _MemoryArtifactStore()
     refs = _seed_case(
         tmp_path,
@@ -527,23 +545,94 @@ def test_s02_repairs_unique_model_invented_path_to_real_repository_path(tmp_path
     runtime = build_s02_runtime(ports=_ports(store, model=model))
     state = _state(refs)
 
-    for node_id in S02_NODE_IDS:
+    route = "revision"
+    attempts = 0
+    latest_quality_ref: ArtifactRef | None = None
+    for node_id in ("S02.10", "S02.20"):
         state = _advance(runtime, node_id, state)
+    while route == "revision" and attempts < 5:
+        for node_id in ("S02.30", "S02.40", "S02.50", "S02.60", "S02.70", "S02.80"):
+            state = _advance(runtime, node_id, state)
+        result = runtime.execute("S02.81", state)  # type: ignore[arg-type]
+        latest_quality_ref = next(
+            ref for ref in result["artifact_refs"] if ref.artifact_type == "PlanQualityReport"
+        )
+        state = _advance(runtime, "S02.81", state)
+        route = _current_route(state, "S02.81")
+        attempts += 1
 
-    assert _current_route(state, "S02.81") == "continue"
-    quality = _model_from_ref(store, _ref_by_type(state, "PlanQualityReport"), PlanQualityReport)
-    paths_result = next(result for result in quality.results if result.dimension == "paths_resolve")
-    assert paths_result.passed is True
-    task_list = _model_from_ref(store, _ref_by_type(state, "TaskList"), TaskList)
-    assert task_list.tasks[0].files == ["internal/checkout/service.go"]
+    assert route == "rejected"
     assert state["s02_plan_draft"]["path_repairs"] == [
         "task-1: src/checkout/service.go -> internal/checkout/service.go"
     ]
+    assert latest_quality_ref is not None
+    quality = _model_from_ref(store, latest_quality_ref, PlanQualityReport)
+    assert quality.passed is False
+    repair_result = next(
+        result for result in quality.results if result.dimension == "no_silent_path_repairs"
+    )
+    assert repair_result.passed is False
+    assert repair_result.detail is not None
+    assert "src/checkout/service.go -> internal/checkout/service.go" in repair_result.detail
+    assert _try_ref_by_type(state, "ExecutionPlan") is None
 
 
-def test_s02_critic_does_not_block_on_ungrounded_generic_risk_concerns(
+def test_s02_40_keeps_models_own_valid_risk_tier_even_if_it_differs_from_heuristic(
     tmp_path: Any,
 ) -> None:
+    """A model that explicitly declares a valid `risk_tier` must have that
+    declaration respected, even when it differs from S02.40's own
+    keyword-heuristic guess (`strategy.risk_ceiling`, seeded here as
+    "code") -- the model may legitimately know the phase is higher-risk
+    than a crude substring match can infer."""
+
+    store = _MemoryArtifactStore()
+    refs = _seed_case(tmp_path, store, risk_ceiling="code")
+    model = _ScriptedPlanProvider(forced_phase_risk_tier="architecture")
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
+    for node_id in S02_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    plan = _model_from_ref(store, _ref_by_type(state, "ExecutionPlan"), ExecutionPlan)
+    assert plan.phases[0].risk_tier == "architecture"
+    repairs = state["s02_plan_draft"]["phase_metadata_repairs"]
+    assert not any(repair.startswith("phase-1: risk_tier") for repair in repairs)
+
+
+def test_s02_40_fills_risk_tier_only_when_model_omits_it(tmp_path: Any) -> None:
+    """The heuristic fallback still applies -- but only when the model's
+    own declaration is missing/invalid, not merely different."""
+
+    store = _MemoryArtifactStore()
+    refs = _seed_case(tmp_path, store, risk_ceiling="code")
+    model = _ScriptedPlanProvider()  # no risk_tier in the phase payload at all
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
+    for node_id in S02_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    plan = _model_from_ref(store, _ref_by_type(state, "ExecutionPlan"), ExecutionPlan)
+    assert plan.phases[0].risk_tier == "code"
+    repairs = state["s02_plan_draft"]["phase_metadata_repairs"]
+    assert "phase-1: risk_tier missing/invalid (None) -> 'code'" in repairs
+
+
+def test_s02_critic_explicit_rejection_is_never_auto_approved(
+    tmp_path: Any,
+) -> None:
+    """The critic's own explicit `approved: False` must never be silently
+    overridden to True just because none of its concerns match the fixed
+    anchor-keyword vocabulary -- an explicit rejection stays a rejection
+    even when the model's reasoning is phrased in a way this codebase's
+    grounding check can't verify. (Previously this exact scenario was
+    silently auto-approved -- the concern's wording, "race conditions",
+    doesn't contain any phase_id/task_id/file/criterion_id substring or the
+    fixed vocabulary, so `_grounded_critique` used to flip approved=False to
+    True. It no longer does.)"""
+
     store = _MemoryArtifactStore()
     refs = _seed_case(tmp_path, store, risk_ceiling="prompt")
     model = _ScriptedPlanProvider(
@@ -559,10 +648,64 @@ def test_s02_critic_does_not_block_on_ungrounded_generic_risk_concerns(
     runtime = build_s02_runtime(ports=_ports(store, model=model))
     state = _state(refs)
 
+    route = "revision"
+    attempts = 0
+    latest_quality_ref: ArtifactRef | None = None
+    for node_id in ("S02.10", "S02.20"):
+        state = _advance(runtime, node_id, state)
+    while route == "revision" and attempts < 5:
+        for node_id in ("S02.30", "S02.40", "S02.50", "S02.60", "S02.70", "S02.80"):
+            state = _advance(runtime, node_id, state)
+        result = runtime.execute("S02.81", state)  # type: ignore[arg-type]
+        latest_quality_ref = next(
+            ref for ref in result["artifact_refs"] if ref.artifact_type == "PlanQualityReport"
+        )
+        state = _advance(runtime, "S02.81", state)
+        route = _current_route(state, "S02.81")
+        attempts += 1
+
+    assert route == "rejected"
+    assert state["s02_critique"]["approved"] is False
+    assert state["s02_critique"]["concerns"] == []
+    assert state["s02_critique"]["ignored_ungrounded"] == [
+        "Removing blocking synchronization in the checkout service could introduce race conditions."
+    ]
+    assert latest_quality_ref is not None
+    quality = _model_from_ref(store, latest_quality_ref, PlanQualityReport)
+    critic_result = next(
+        result for result in quality.results if result.dimension == "critic_approved"
+    )
+    assert critic_result.passed is False
+
+
+def test_s02_critic_explicit_approval_with_ungrounded_chatter_still_passes(
+    tmp_path: Any,
+) -> None:
+    """The inverse of the rejection case, and the real intent the old test
+    (now split above) was originally meant to prove: speculative,
+    ungrounded risk chatter from the critic must not by itself block a plan
+    the critic actually approved."""
+
+    store = _MemoryArtifactStore()
+    refs = _seed_case(tmp_path, store, risk_ceiling="prompt")
+    model = _ScriptedPlanProvider(
+        critic_payload={
+            "omissions": [],
+            "concerns": [
+                "Removing blocking synchronization in the checkout service could introduce "
+                "race conditions."
+            ],
+            "approved": True,
+        }
+    )
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
     for node_id in S02_NODE_IDS:
         state = _advance(runtime, node_id, state)
 
     assert _current_route(state, "S02.81") == "continue"
+    assert state["s02_critique"]["approved"] is True
     assert state["s02_critique"]["concerns"] == []
     assert state["s02_critique"]["ignored_ungrounded"] == [
         "Removing blocking synchronization in the checkout service could introduce race conditions."

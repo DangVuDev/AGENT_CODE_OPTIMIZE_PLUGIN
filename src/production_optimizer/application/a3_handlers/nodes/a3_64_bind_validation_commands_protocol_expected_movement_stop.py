@@ -58,7 +58,8 @@ def handle_a3_64_bind_validation_commands_protocol_expected_movement_stop(
     for draft in draft_set.strategies:
         reasons = list(draft.gate_reasons)
         validation_plan = draft.validation_plan
-        if validation_plan is None or not validation_plan.test_command_ids:
+        if validation_plan is None:
+            # Nothing to preserve -- construct fresh from scratch.
             if real_command_ids:
                 validation_plan = ValidationPlan(
                     plan_id=f"validation-{draft.strategy_id}",
@@ -82,6 +83,35 @@ def handle_a3_64_bind_validation_commands_protocol_expected_movement_stop(
                     benchmark_protocol="none available",
                     stop_conditions=["no verification command available"],
                 )
+        elif not validation_plan.test_command_ids and real_command_ids:
+            # A plan already exists with intentionally-empty test_command_ids
+            # (e.g. a benchmark-only strategy with its own custom
+            # benchmark_protocol/stop_conditions already set) -- merge in the
+            # now-known real command ids rather than discarding the plan's
+            # own custom fields via a full replace.
+            validation_plan = validation_plan.model_copy(
+                update={
+                    "test_command_ids": real_command_ids,
+                    "benchmark_protocol": (
+                        _validation_benchmark_protocol(validation_commands)
+                        if validation_plan.benchmark_protocol == "none available"
+                        else validation_plan.benchmark_protocol
+                    ),
+                    "expected_metric_movements": {
+                        **expected_metric_movements,
+                        **validation_plan.expected_metric_movements,
+                    },
+                    "stop_conditions": (
+                        validation_plan.stop_conditions
+                        if validation_plan.stop_conditions
+                        != ["no verification command available"]
+                        else [
+                            "any validation command exits nonzero",
+                            "any guardrail metric violates its declared threshold",
+                        ]
+                    ),
+                }
+            )
         else:
             known_command_ids = set(real_command_ids)
             unknown_command_ids = [

@@ -15,11 +15,13 @@ from ..shared import (
     _base_envelope,
     _declared_tools_outside_pyproject,
     _has_pytest_benchmark_dependency,
+    _has_pytest_cov_dependency,
     _put_envelope,
     _read_model,
     _read_pyproject,
     _require_ref,
     _requirements_declare_pytest_benchmark,
+    _requirements_declare_pytest_cov,
     _seal,
 )
 
@@ -66,11 +68,15 @@ def handle_a2_30_parse_snapshot_languages_modules_manifests_dependencies_symbols
     has_benchmark = _has_pytest_benchmark_dependency(
         pyproject_config
     ) or _requirements_declare_pytest_benchmark(root)
+    has_cov = _has_pytest_cov_dependency(pyproject_config) or _requirements_declare_pytest_cov(
+        root
+    )
     tool_coverage = {
         "pytest": 1.0 if test_roots or "tool.pytest.ini_options" in declared else 0.0,
         "ruff": 1.0 if "tool.ruff" in declared else 0.0,
         "mypy": 1.0 if "tool.mypy" in declared else 0.0,
         "pytest_benchmark": 1.0 if has_benchmark else 0.0,
+        "pytest_cov": 1.0 if has_cov else 0.0,
     }
 
     manifest = _seal(

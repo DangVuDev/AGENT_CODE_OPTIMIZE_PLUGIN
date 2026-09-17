@@ -24,6 +24,24 @@ from ..shared import (
 )
 
 
+def _grounding_suffix(evidence_ids: list[str], *, precise_ids: list[str]) -> str:
+    """A signal's `evidence_ids` can come from three different tiers of
+    confidence: (1) evidence that numerically confirms the breach, (2)
+    evidence for the same metric_id that exists but wasn't numerically
+    confirmed (e.g. a non-numeric `value` like "unmeasured"), or (3) raw
+    aggregate sample_ids with no per-item evidence at all. Silently
+    treating tier 2/3 the same as tier 1 would let a signal look
+    precisely evidence-grounded when it isn't -- this labels the weaker
+    tiers directly in the description (a free-text field already read by
+    downstream reports/reviewers) rather than adding a new schema field."""
+
+    if evidence_ids and evidence_ids is precise_ids:
+        return ""
+    if not evidence_ids:
+        return " [evidence: none available]"
+    return " [evidence: same-metric, not numerically confirmed]"
+
+
 def _numeric_value(item: EvidenceItem) -> float | None:
     value = item.value
     if isinstance(value, bool):
@@ -97,10 +115,9 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
         observed = select_aggregate_value(agg, criterion.aggregation)
         if not _criterion_breached(criterion, observed):
             continue
-        evidence_ids = (
-            _criterion_supporting_evidence_ids(bundle, criterion)
-            or catalog.by_metric.get(criterion.metric_id)
-            or list(agg.sample_ids)
+        precise_ids = _criterion_supporting_evidence_ids(bundle, criterion)
+        evidence_ids = precise_ids or catalog.by_metric.get(criterion.metric_id) or list(
+            agg.sample_ids
         )
         signals.append(
             ProblemSignal(
@@ -111,6 +128,7 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
                 description=(
                     f"{criterion.metric_id} {criterion.aggregation} {observed} breaches "
                     f"{criterion.direction} target {criterion.target}"
+                    f"{_grounding_suffix(evidence_ids, precise_ids=precise_ids)}"
                 ),
                 baseline_value=observed,
                 target_value=criterion.target,
@@ -133,9 +151,12 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
         op = _GUARDRAIL_OPERATORS[guardrail.operator]
         if op(observed, guardrail.threshold):
             continue
-        evidence_ids = _guardrail_supporting_evidence_ids(
+        precise_ids = _guardrail_supporting_evidence_ids(
             bundle, guardrail.metric_id, op, guardrail.threshold
-        ) or catalog.by_metric.get(guardrail.metric_id) or list(agg.sample_ids)
+        )
+        evidence_ids = precise_ids or catalog.by_metric.get(guardrail.metric_id) or list(
+            agg.sample_ids
+        )
         signals.append(
             ProblemSignal(
                 signal_id=f"signal-guardrail-{guardrail.guardrail_id}",
@@ -149,6 +170,7 @@ def handle_a3_20_deterministically_compare_baseline_criteria_guardrails_distribu
                     f"guardrail {guardrail.guardrail_id} violated: "
                     f"{guardrail.metric_id} {definition.aggregation} {observed} fails "
                     f"{guardrail.operator} {guardrail.threshold}"
+                    f"{_grounding_suffix(evidence_ids, precise_ids=precise_ids)}"
                 ),
                 baseline_value=observed,
                 target_value=guardrail.threshold,

@@ -450,7 +450,7 @@ def _seed_case(
     selected_ref = _seal_and_store(store, selected)
 
     phase = ExecutionPhase(
-        phase_id="phase-1", sequence=1, phase_kind="implementation",
+        phase_id="phase-1", sequence=1, phase_kind="implementation", risk_tier="code",
         treatment=PlanTreatment(variable="TIMEOUT", before="30", after="60"),
         done_criteria=["latency-p95 improves"], rollback_command="git checkout -- src/app.py",
         rollback_trigger="latency regresses", rollback_deadline_seconds=600,

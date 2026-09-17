@@ -232,7 +232,11 @@ class OptimizationState(TypedDict, total=False):
     # artifact_ids, and a reset of `s04_check_results`/
     # `s04_failure_attributions` at the start of each pass so a fixed check
     # doesn't get corrupted by a stale failing result accumulated from the
-    # pass before it).
+    # pass before it). Sharing one counter/budget between these two
+    # genuinely different failure classes is deliberate, not an oversight
+    # -- see `orchestration/shared_workflow.py`'s own module docstring for
+    # why a per-class split is a larger, separate future refactor rather
+    # than something attempted here.
     s03_revision_attempts: Annotated[int, operator.add]
     # S05 (Controlled Remeasurement) -- reuses S03's own workspace exactly
     # like S04 does (no new isolation boundary), no fan-out, so plain

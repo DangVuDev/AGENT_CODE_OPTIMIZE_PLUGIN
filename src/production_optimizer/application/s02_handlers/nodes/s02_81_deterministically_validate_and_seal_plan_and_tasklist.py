@@ -55,6 +55,7 @@ def handle_s02_81_deterministically_validate_and_seal_plan_and_tasklist(
     risk_order_ok, risk_order_detail = _check_phase_risk_order(phases)
     risk_ladder_ok, risk_ladder_detail = _check_risk_ladder_order(phases)
     path_failures = _path_resolution_failures(tasks, allowed_paths=allowed_paths)
+    path_repairs = cast("list[str]", draft.get("path_repairs") or [])
     coverage = cast("dict[str, bool]", draft.get("acceptance_coverage") or {})
     rollback_ok = bool(draft.get("rollback_ok"))
     rollback_reasons = cast("list[str]", draft.get("rollback_reasons") or [])
@@ -87,6 +88,20 @@ def handle_s02_81_deterministically_validate_and_seal_plan_and_tasklist(
             dimension="paths_resolve",
             passed=not path_failures,
             detail="; ".join(path_failures) or None,
+        ),
+        # S02.50's `_repair_task_file_paths` silently rewrites a
+        # model-hallucinated path to the one real repository file whose
+        # basename/suffix uniquely matches it -- useful for cosmetic
+        # normalization (`\` vs `/`, a leading `./`), but a real repair
+        # means the model asserted a path that did not exist. Surfacing it
+        # here (rather than letting `paths_resolve` silently see only the
+        # already-rewritten, now-existing path) makes that fact a real,
+        # blocking quality dimension instead of a silent bypass: it drives
+        # the same bounded-revision loop as any other failing dimension.
+        PlanQualityResult(
+            dimension="no_silent_path_repairs",
+            passed=not path_repairs,
+            detail="; ".join(path_repairs) or None,
         ),
         PlanQualityResult(
             dimension="criteria_coverage",

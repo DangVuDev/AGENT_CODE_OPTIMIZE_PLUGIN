@@ -381,7 +381,7 @@ def _seed_case(store: _MemoryArtifactStore, *, repo: Path) -> list[ArtifactRef]:
     selected_ref = _seal_and_store(store, selected)
 
     phase = ExecutionPhase(
-        phase_id="phase-1", sequence=1, phase_kind="implementation",
+        phase_id="phase-1", sequence=1, phase_kind="implementation", risk_tier="code",
         treatment=PlanTreatment(variable="compute_body", before="1 + 1", after="2 + 2"),
         done_criteria=["correctness improves"], rollback_command="git checkout -- app.py",
         rollback_trigger="tests regress", rollback_deadline_seconds=600,

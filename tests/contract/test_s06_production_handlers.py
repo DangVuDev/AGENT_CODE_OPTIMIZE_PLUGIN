@@ -543,6 +543,7 @@ def _seed_case(
         phase_id="phase-1",
         sequence=1,
         phase_kind="implementation",
+        risk_tier="code",
         treatment=PlanTreatment(variable="compute_body", before="1 + 1", after="2 + 2"),
         done_criteria=["correctness improves"],
         rollback_command="git checkout -- app.py",

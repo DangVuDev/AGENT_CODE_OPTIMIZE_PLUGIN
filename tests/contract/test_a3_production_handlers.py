@@ -28,7 +28,7 @@ from production_optimizer.contracts.a1 import (
     SourceReference,
     WorkloadContract,
 )
-from production_optimizer.contracts.a2 import VerificationManifest
+from production_optimizer.contracts.a2 import RepositoryCommand, VerificationManifest
 from production_optimizer.contracts.a3 import (
     AnalyzerObservationBranch,
     ExperimentPhaseTemplate,
@@ -40,6 +40,7 @@ from production_optimizer.contracts.a3 import (
     StrategyDraft,
     StrategyDraftSet,
     Treatment,
+    ValidationPlan,
 )
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import (
@@ -481,6 +482,103 @@ def test_a3_64_binds_docker_compose_evaluation_validation_command(tmp_path: Path
         strategy.validation_plan.expected_metric_movements["correctness"]
         == "must remain eq 0.0 exit_code"
     )
+
+
+def test_a3_64_merges_into_existing_plan_with_empty_test_command_ids_by_design(
+    tmp_path: Path,
+) -> None:
+    """A draft may already carry a `ValidationPlan` with intentionally-empty
+    `test_command_ids` (e.g. a benchmark-only strategy authored upstream
+    with its own custom `benchmark_protocol`/`stop_conditions`) -- A3.64
+    must merge the now-known real command ids into that plan, not discard
+    the custom fields via a full replace."""
+
+    store = _MemoryArtifactStore()
+    request = _build_request(allowed_root_id=str(tmp_path), relative_path=".")
+    request_ref = _seed_artifact(store, request)
+    verification_ref = _seed_artifact(
+        store,
+        VerificationManifest(
+            artifact_id="verification-real",
+            tenant_id=_TENANT_ID,
+            case_id=_CASE_ID,
+            created_at=datetime.now(UTC),
+            producer=_TEST_PRODUCER,
+            policy_versions={"a2": "test-v1"},
+            content_digest=_ZERO_DIGEST,
+            commands=[
+                RepositoryCommand(
+                    command_id="unit-1",
+                    argv=["python", "-m", "pytest", "tests"],
+                    working_directory=".",
+                    kind="unit",
+                    source="pyproject_toml",
+                )
+            ],
+            rejected_commands=[],
+        ),
+    )
+    custom_plan = ValidationPlan(
+        plan_id="validation-strategy-benchmark-only",
+        strategy_id="strategy-benchmark-only",
+        test_command_ids=[],
+        benchmark_protocol="pytest-benchmark round: 20 warmup, 50 rounds",
+        stop_conditions=["p95 regression > 5%"],
+    )
+    draft_ref = _seed_artifact(
+        store,
+        StrategyDraftSet(
+            artifact_id=f"{_CASE_ID}-A3.63-pass0-StrategyDraftSet",
+            tenant_id=_TENANT_ID,
+            case_id=_CASE_ID,
+            created_at=datetime.now(UTC),
+            producer=_TEST_PRODUCER,
+            policy_versions={"a3": "test-v1"},
+            content_digest=_ZERO_DIGEST,
+            strategies=[
+                StrategyDraft(
+                    strategy_id="strategy-benchmark-only",
+                    finding_ids=["finding-1"],
+                    title="Benchmark-only strategy",
+                    mechanism="Improve throughput.",
+                    strategy_tradeoffs="None.",
+                    phase_templates=[
+                        ExperimentPhaseTemplate(
+                            phase_id="phase-1",
+                            sequence=1,
+                            phase_kind="diagnostic",
+                            treatment=Treatment(
+                                variable="throughput", before="unknown", after="measured"
+                            ),
+                        )
+                    ],
+                    risk_ceiling="experiment_config",
+                    evidence_ids=["evidence-1"],
+                    validation_plan=custom_plan,
+                )
+            ],
+        ),
+    )
+    state = _state(request_ref)
+    state["artifact_refs"] = [request_ref, verification_ref, draft_ref]
+    runtime = build_a3_runtime(
+        ports=NodePorts(artifacts=store, intents=_MemoryIntentLedger(), policy=_AllowPolicy())
+    )
+
+    state = _advance(runtime, "A3.64", state)
+
+    draft_set = _model_from_ref(
+        store, _stage_ref(state, "A3.64-pass0", "StrategyDraftSet"), StrategyDraftSet
+    )
+    strategy = draft_set.strategies[0]
+    assert strategy.validation_plan is not None
+    # The real command id is filled in, but the custom fields the plan
+    # already had are preserved, not discarded by a full replace.
+    assert strategy.validation_plan.test_command_ids == ["unit-1"]
+    assert strategy.validation_plan.benchmark_protocol == (
+        "pytest-benchmark round: 20 warmup, 50 rounds"
+    )
+    assert strategy.validation_plan.stop_conditions == ["p95 regression > 5%"]
 
 
 @contextmanager

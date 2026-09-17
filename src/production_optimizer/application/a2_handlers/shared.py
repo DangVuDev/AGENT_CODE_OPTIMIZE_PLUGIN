@@ -1074,11 +1074,14 @@ def _declared_tools_outside_pyproject(root: Path) -> set[str]:
     return declared
 
 
-def _requirements_declare_pytest_benchmark(root: Path) -> bool:
-    """`pytest-benchmark` pinned in a requirements file counts as declared.
+def _requirements_declare_dependency(root: Path, package_name: str) -> bool:
+    """Is `package_name` pinned in a `requirements*.txt` file?
 
-    Same declarative signal `_has_pytest_benchmark_dependency` reads out of
-    pyproject.toml, just in the other place real projects put it.
+    Same declarative signal `_pyproject_declares_dependency` reads out of
+    pyproject.toml, just in the other place real projects put it -- and the
+    same exact-token split, so e.g. a `pytest-covfefe==1.0` line can never
+    false-positive-match `package_name="pytest-cov"` the way a bare
+    `.startswith()` would.
     """
 
     for path in sorted(root.glob("requirements*.txt")):
@@ -1088,13 +1091,20 @@ def _requirements_declare_pytest_benchmark(root: Path) -> bool:
             continue
         for line in content.splitlines():
             entry = line.split("#", 1)[0].strip().lower()
-            if entry.replace("_", "-").startswith("pytest-benchmark"):
+            if not entry:
+                continue
+            name = re.split(r"[><=!~\[; ]", entry, maxsplit=1)[0].replace("_", "-")
+            if name == package_name:
                 return True
     return False
 
 
-def _has_pytest_benchmark_dependency(pyproject_config: dict[str, Any]) -> bool:
-    """Does this repo declare `pytest-benchmark` anywhere real dependencies live?
+def _requirements_declare_pytest_benchmark(root: Path) -> bool:
+    return _requirements_declare_dependency(root, "pytest-benchmark")
+
+
+def _pyproject_declares_dependency(pyproject_config: dict[str, Any], package_name: str) -> bool:
+    """Does this repo declare `package_name` anywhere real dependencies live?
 
     Checks PEP 621 `[project.dependencies]`/`[project.optional-dependencies]`
     and PEP 735 `[dependency-groups]` (the form this very project's own
@@ -1124,9 +1134,21 @@ def _has_pytest_benchmark_dependency(pyproject_config: dict[str, Any]) -> bool:
             if not isinstance(dep, str):
                 continue
             name = re.split(r"[><=!~\[; ]", dep.strip(), maxsplit=1)[0]
-            if name.lower() == "pytest-benchmark":
+            if name.lower() == package_name:
                 return True
     return False
+
+
+def _has_pytest_benchmark_dependency(pyproject_config: dict[str, Any]) -> bool:
+    return _pyproject_declares_dependency(pyproject_config, "pytest-benchmark")
+
+
+def _has_pytest_cov_dependency(pyproject_config: dict[str, Any]) -> bool:
+    return _pyproject_declares_dependency(pyproject_config, "pytest-cov")
+
+
+def _requirements_declare_pytest_cov(root: Path) -> bool:
+    return _requirements_declare_dependency(root, "pytest-cov")
 
 
 def _flatten_toml_sections(data: dict[str, Any], prefix: str = "") -> dict[str, Any]:

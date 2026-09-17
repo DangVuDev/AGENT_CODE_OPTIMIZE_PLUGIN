@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ast
 import operator as operator_module
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -300,8 +300,8 @@ def _build_finding_context(
             )
     lines.append("\nEvidence observations:")
     for item in bundle.evidence:
-        support_hint = "supports_nonzero_claim=yes" if _evidence_supports_claim(item) else (
-            "supports_nonzero_claim=no"
+        support_hint = "supports_claim=yes" if _evidence_supports_claim(item) else (
+            "supports_claim=no"
         )
         lines.append(
             f"- {item.evidence_id}: metric_id={item.metric_id} "
@@ -314,8 +314,14 @@ def _build_finding_context(
 
 
 def _evidence_supports_claim(item: Any) -> bool:
+    """A numeric value supports a claim regardless of magnitude -- a real
+    zero (e.g. `error_budget_remaining=0`, a genuine guardrail breach) is
+    just as valid a supporting value as any nonzero one. Only a missing or
+    non-numeric value (a bool masquerading as numeric, or a string/None)
+    fails to support anything."""
+
     value = getattr(item, "value", None)
-    return isinstance(value, int | float) and not isinstance(value, bool) and value != 0
+    return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def _generate_finding_drafts(
@@ -726,7 +732,23 @@ def _validation_command_candidates(
 
     unique: dict[str, ValidationCommandCandidate] = {}
     for candidate in candidates:
-        unique.setdefault(candidate.command_id, candidate)
+        existing = unique.get(candidate.command_id)
+        if existing is None:
+            unique[candidate.command_id] = candidate
+        elif existing.metric_ids != candidate.metric_ids:
+            # A collision means a compose evaluation and a repository-owned
+            # command happen to share a command_id. Neither source's
+            # metric_ids is more authoritative than the other -- compose's
+            # are curated but scoped to that one evaluation, repository's
+            # are a blanket guess across every criterion/guardrail -- so
+            # union them rather than silently discarding whichever source
+            # lost the race to be inserted first. Keeps the earlier-inserted
+            # candidate's `command_display`/`source` (compose evaluations
+            # are appended first and describe the fuller invocation).
+            merged_metric_ids = tuple(
+                sorted(set(existing.metric_ids) | set(candidate.metric_ids))
+            )
+            unique[candidate.command_id] = replace(existing, metric_ids=merged_metric_ids)
     return list(unique.values())
 
 

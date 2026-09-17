@@ -14,6 +14,7 @@ from production_optimizer.contracts.s02 import ExecutionPhase
 from production_optimizer.contracts.state import OptimizationState
 
 from ..shared import (
+    _RISK_TIER_ORDER,
     _phase_template_risk_tiers,
     _read_optional,
     _read_required,
@@ -49,10 +50,18 @@ def handle_s02_40_materialize_and_validate_draft_phases(
         phase_id = str(raw.get("phase_id") or "<unknown>")
         expected_risk_tier = risk_by_phase_id.get(phase_id, strategy.risk_ceiling)
         updates: dict[str, Any] = {}
-        if raw.get("risk_tier") != expected_risk_tier:
+        declared_risk_tier = raw.get("risk_tier")
+        if declared_risk_tier not in _RISK_TIER_ORDER:
+            # Only fill in when the model's own declaration is missing or
+            # not one of the four valid tiers -- a validly-declared tier
+            # that merely differs from this heuristic's own guess is never
+            # overridden: the model may legitimately know more about a
+            # phase's real risk (e.g. it touches a service boundary) than a
+            # crude keyword-substring heuristic can infer.
             updates["risk_tier"] = expected_risk_tier
             metadata_repairs.append(
-                f"{phase_id}: risk_tier {raw.get('risk_tier')!r} -> {expected_risk_tier!r}"
+                f"{phase_id}: risk_tier missing/invalid ({declared_risk_tier!r}) -> "
+                f"{expected_risk_tier!r}"
             )
         if not raw.get("affected_criteria"):
             updates["affected_criteria"] = affected_criteria

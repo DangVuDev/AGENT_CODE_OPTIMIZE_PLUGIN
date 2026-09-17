@@ -22,7 +22,7 @@ class ExecutionPhase(ContractModel):
     phase_id: str = Field(min_length=1)
     sequence: int = Field(ge=1)
     phase_kind: Literal["diagnostic", "implementation"]
-    risk_tier: Literal["experiment_config", "prompt", "code", "architecture"] = "code"
+    risk_tier: Literal["experiment_config", "prompt", "code", "architecture"]
     treatment: PlanTreatment
     done_criteria: list[str] = Field(min_length=1)
     affected_criteria: list[str] = Field(default_factory=list)

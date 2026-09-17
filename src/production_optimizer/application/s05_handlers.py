@@ -53,9 +53,14 @@ from production_optimizer.contracts.a2 import (
     DimensionVerdict,
     MetricAggregate,
     RepositoryManifest,
+    SourceSnapshot,
 )
 from production_optimizer.contracts.artifacts import ArtifactRef
-from production_optimizer.contracts.canonical import canonical_json, model_content_digest
+from production_optimizer.contracts.canonical import (
+    canonical_json,
+    model_content_digest,
+    sha256_digest,
+)
 from production_optimizer.contracts.envelope import ArtifactEnvelope, ProducerIdentity
 from production_optimizer.contracts.platform import WorkerJob
 from production_optimizer.contracts.s02 import ExecutionPlan
@@ -188,12 +193,33 @@ def _s05_20(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     """Real isolation audit grounded in S03's own `PatchArtifact.
     scope_report`/`changed_files` -- a dependency-manifest file among them is
     a real BR-05-001 violation, never a second, independent git diff against
-    a workspace S04 may have already cleaned up on a real pass."""
+    a workspace S04 may have already cleaned up on a real pass.
+
+    Deliberate scope boundary, not an oversight: this audit can only detect
+    drift that touches a *tracked* file the patch or manifest already know
+    about. True environment drift that never touches a tracked file at all
+    -- e.g. a CI runner silently upgrading an untracked system package, or
+    an environment variable changing between A2's baseline run and this
+    remeasurement pass -- has no real, in-repo signal this codebase can
+    check without new infrastructure (mirrors B1.32-35's historical-metrics
+    gap: an honest, acknowledged absence, never a fabricated pass). What IS
+    in scope and checked below: if the repository's own tracked
+    dependency-manifest files (`RepositoryManifest.manifest_files`, e.g.
+    requirements.txt/pyproject.toml/lockfiles) have drifted in *content*
+    from what `SourceSnapshot` recorded at A2.30 time -- even if the patch
+    itself never touched them -- that is real, closable drift (e.g. a
+    CI-side `pip install --upgrade` between baseline and remeasurement) and
+    is real, closable drift this audit can actually ground in a digest
+    comparison.
+    """
 
     patch_stage = _s03_patch_stage(state)
     patch_ref = _require_stage_ref(state, patch_stage, "PatchArtifact")
     patch = _read_model(ports, state, patch_ref, PatchArtifact)
     manifest = cast("RepositoryManifest", _read_required(ports, state, "RepositoryManifest"))
+    snapshot = cast("SourceSnapshot", _read_required(ports, state, "SourceSnapshot"))
+    workspace = cast("dict[str, Any]", state.get("s03_workspace") or {})
+    workspace_root = Path(cast("str", workspace.get("path", "")))
 
     violations: list[IsolationViolation] = []
     if not patch.scope_report.in_scope:
@@ -206,6 +232,29 @@ def _s05_20(state: OptimizationState, ports: NodePorts) -> NodeExecution:
         violations.append(
             IsolationViolation(kind="dependency_drift", detail=f"{path} changed with the patch")
         )
+
+    digest_by_path = {f.relative_path: f.content_digest for f in snapshot.files}
+    for path in sorted(manifest.manifest_files):
+        expected_digest = digest_by_path.get(path)
+        if expected_digest is None or path in patch.changed_files:
+            # Not tracked at A2.30 time, or already covered by the
+            # dependency_drift check above -- don't double-flag the same
+            # real cause.
+            continue
+        candidate = workspace_root / path
+        if not candidate.is_file():
+            continue
+        actual_digest = sha256_digest(candidate.read_bytes())
+        if actual_digest != expected_digest:
+            violations.append(
+                IsolationViolation(
+                    kind="dependency_drift",
+                    detail=(
+                        f"{path} content changed outside the patch since A2.30's "
+                        "snapshot -- real environment/dependency drift"
+                    ),
+                )
+            )
 
     isolated = not violations
     report = _seal(
@@ -382,9 +431,15 @@ def _s05_60(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     have been measured (BR-05-005) with at least its required sample count
     (`EvidenceRequirement.minimum_samples`) -- a criterion S05.40 could not
     resolve to any real command is a real quality failure, not silently
-    dropped."""
+    dropped. Also fails a criterion whose metric_id has no matching
+    `BaselineSnapshot` aggregate at all: without a real baseline to compare
+    against, `_s05_80` has nothing honest to compute an effect from (a
+    fabricated zero-baseline "improvement" would be worse than an honest
+    failure here)."""
 
     request = cast("OptimizationRequest", _read_required(ports, state, "OptimizationRequest"))
+    baseline = cast("BaselineSnapshot", _read_required(ports, state, "BaselineSnapshot"))
+    baseline_metric_ids = {aggregate.metric_id for aggregate in baseline.aggregates}
     treatment = cast("dict[str, Any]", state.get("s05_treatment_aggregates") or {})
     by_criterion = cast("dict[str, Any]", treatment.get("by_criterion") or {})
     unmeasurable = set(cast("list[str]", treatment.get("unmeasurable_criterion_ids") or []))
@@ -394,6 +449,12 @@ def _s05_60(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     for criterion in request.criteria:
         if criterion.criterion_id in unmeasurable:
             reasons.append(f"{criterion.criterion_id}: no real command resolved this pass")
+            continue
+        if criterion.metric_id not in baseline_metric_ids:
+            reasons.append(
+                f"{criterion.criterion_id}: no baseline aggregate for metric "
+                f"{criterion.metric_id!r} -- not comparable"
+            )
             continue
         aggregate_raw = by_criterion.get(criterion.criterion_id)
         minimum_samples = requirements.get(criterion.criterion_id, 1)
@@ -472,9 +533,17 @@ def _s05_80(state: OptimizationState, ports: NodePorts) -> NodeExecution:
         aggregate_raw = by_criterion.get(criterion.criterion_id)
         if aggregate_raw is None:
             continue
-        aggregate = MetricAggregate.model_validate(aggregate_raw)
         baseline_aggregate = baseline_by_metric.get(criterion.metric_id)
-        baseline_mean = baseline_aggregate.mean if baseline_aggregate is not None else 0.0
+        if baseline_aggregate is None:
+            # No real baseline to compare against -- honestly unmeasurable,
+            # never a fabricated zero-baseline effect. S05.60 already fails
+            # quality (and S05.70's comparability gate already halts the
+            # pass) for this same reason, so skipping this criterion's
+            # EffectResult here is belt-and-suspenders consistency, not the
+            # sole enforcement.
+            continue
+        aggregate = MetricAggregate.model_validate(aggregate_raw)
+        baseline_mean = baseline_aggregate.mean
         absolute_change = aggregate.mean - baseline_mean
         relative_change = absolute_change / baseline_mean if baseline_mean else None
         effects.append(
@@ -536,6 +605,7 @@ _MODEL_BY_TYPE: dict[str, type[ArtifactEnvelope]] = {
     "OptimizationRequest": cast("type[ArtifactEnvelope]", OptimizationRequest),
     "BaselineSnapshot": cast("type[ArtifactEnvelope]", BaselineSnapshot),
     "RepositoryManifest": cast("type[ArtifactEnvelope]", RepositoryManifest),
+    "SourceSnapshot": cast("type[ArtifactEnvelope]", SourceSnapshot),
     "ExecutionPlan": cast("type[ArtifactEnvelope]", ExecutionPlan),
 }
 

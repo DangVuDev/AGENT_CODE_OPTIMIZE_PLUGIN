@@ -9,12 +9,19 @@ from .envelope import ArtifactEnvelope
 
 
 class CheckResult(ContractModel):
+    """`coverage_percent` is populated only for a real `kind="unit"` run
+    where the repository actually declares `pytest-cov` (see
+    `s04_worker_capabilities.build_s04_capabilities`) -- `None` otherwise,
+    never fabricated, per the spec's own S04.90 row ("Store commands,
+    outputs, versions, durations, coverage and decision")."""
+
     command_id: str = Field(min_length=1)
     kind: Literal["build", "lint", "type", "unit", "integration", "security", "domain"]
     exit_code: int
     passed: bool
     duration_seconds: float = Field(ge=0)
     output_tail: str = Field(default="", max_length=4000)
+    coverage_percent: float | None = Field(default=None, ge=0, le=100)
 
 
 class FailureAttribution(ContractModel):

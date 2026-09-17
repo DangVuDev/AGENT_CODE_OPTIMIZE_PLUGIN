@@ -28,6 +28,7 @@ from production_optimizer.contracts.a1 import (
 )
 from production_optimizer.contracts.a2 import (
     BaselineSnapshot,
+    FileIdentity,
     MetricAggregate,
     RepositoryCommand,
     RepositoryManifest,
@@ -387,7 +388,7 @@ def _seed_case(
     selected_ref = _seal_and_store(store, selected)
 
     phase = ExecutionPhase(
-        phase_id="phase-1", sequence=1, phase_kind="implementation",
+        phase_id="phase-1", sequence=1, phase_kind="implementation", risk_tier="code",
         treatment=PlanTreatment(variable="compute_body", before=before, after=after),
         done_criteria=["correctness improves"], rollback_command="git checkout -- app.py",
         rollback_trigger="tests regress", rollback_deadline_seconds=600,
@@ -501,3 +502,208 @@ def test_s05_70_rejects_when_a_criterion_cannot_be_measured(tmp_path: Path) -> N
     # S05.40 already ran (and cleaned up) before the S05.70 rejection --
     # nothing left to clean up manually here.
     assert not workspace_path.exists()
+
+
+def test_s05_60_fails_quality_when_baseline_has_no_aggregate_for_a_criterions_metric(
+    tmp_path: Path,
+) -> None:
+    """A criterion whose metric_id can genuinely be measured this pass
+    (S05.40 successfully reruns a real repository-owned command for it) but
+    has no matching aggregate in A2's real `BaselineSnapshot` must fail
+    sample quality -- there is no honest baseline to compare against, so
+    `_s05_80` must never fabricate one. This is a real, different case from
+    "no command could be resolved at all" (already covered by
+    `test_s05_70_rejects_when_a_criterion_cannot_be_measured`)."""
+
+    repo = _seed_repo(tmp_path, initial_expr="1 + 1")
+    (repo / "lint_ok.py").write_text("import sys\nsys.exit(0)\n")
+    store = _MemoryArtifactStore()
+    criterion_without_baseline = Criterion(
+        criterion_id="lint-quality", metric_id="lint_command_result", direction="minimize",
+        target=0.0, unit="exit_code", weight=1.0,
+    )
+    refs = _seed_case(
+        store, repo=repo, before="1 + 1", after="2 + 2", baseline_unit_failing=True,
+        extra_criteria=[criterion_without_baseline],
+    )
+    manifest_ref = _ref_by_type(_state(refs), "RepositoryManifest")
+    manifest = _model_from_ref(store, manifest_ref, RepositoryManifest)
+    manifest = manifest.model_copy(
+        update={
+            "commands": [
+                *manifest.commands,
+                RepositoryCommand(
+                    command_id="lint-1", argv=["python", "lint_ok.py"],
+                    working_directory=str(repo), kind="lint", source="pyproject_toml",
+                ),
+            ]
+        }
+    )
+    new_manifest_ref = _seal_and_store(store, manifest)
+    refs = [new_manifest_ref if r.artifact_type == "RepositoryManifest" else r for r in refs]
+
+    state = _run_s03_and_s04(store, _state(refs))
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+
+    runtime = build_s05_runtime(ports=_ports(store))
+    for node_id in S05_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+        if state["node_routes"][node_id] == "rejected":
+            break
+
+    # The criterion really was measurable this pass (S05.40 did not mark
+    # it unmeasurable) -- the failure is specifically the missing baseline.
+    treatment = cast("dict[str, Any]", state["s05_treatment_aggregates"])
+    assert "lint-quality" not in treatment["unmeasurable_criterion_ids"]
+    assert "lint-quality" in treatment["by_criterion"]
+
+    quality = cast("dict[str, Any]", state["s05_quality"])
+    assert quality["passed"] is False
+    assert any("lint-quality" in reason and "no baseline aggregate" in reason
+               for reason in quality["reasons"])
+    assert state["node_routes"]["S05.70"] == "rejected"
+    assert "Measurement" not in {
+        r.artifact_type for r in cast("list[ArtifactRef]", state["artifact_refs"])
+    }
+
+    if workspace_path.exists():
+        import shutil
+
+        shutil.rmtree(workspace_path.parent, ignore_errors=True)
+
+
+def test_s05_20_detects_dependency_drift_outside_the_patch(tmp_path: Path) -> None:
+    """A tracked manifest file (e.g. requirements.txt) whose content
+    changes between A2.30's snapshot and this remeasurement pass -- without
+    the patch itself ever touching it -- is real drift from something else
+    (a CI-side dependency upgrade, say). BR-05-001 must catch this even
+    though no source file the patch changed is involved."""
+
+    repo = _seed_repo(tmp_path, initial_expr="1 + 1")
+    original_requirements = "requests==2.31.0\n"
+    (repo / "requirements.txt").write_text(original_requirements)
+    store = _MemoryArtifactStore()
+    refs = _seed_case(store, repo=repo, before="1 + 1", after="2 + 2", baseline_unit_failing=True)
+
+    snapshot_ref = _ref_by_type(_state(refs), "SourceSnapshot")
+    snapshot = _model_from_ref(store, snapshot_ref, SourceSnapshot)
+    snapshot = snapshot.model_copy(
+        update={
+            "files": [
+                FileIdentity(
+                    relative_path="requirements.txt",
+                    content_digest=sha256_digest(original_requirements.encode("utf-8")),
+                )
+            ]
+        }
+    )
+    new_snapshot_ref = _seal_and_store(store, snapshot)
+    refs = [new_snapshot_ref if r.artifact_type == "SourceSnapshot" else r for r in refs]
+
+    manifest_ref = _ref_by_type(_state(refs), "RepositoryManifest")
+    manifest = _model_from_ref(store, manifest_ref, RepositoryManifest)
+    manifest = manifest.model_copy(update={"manifest_files": ["requirements.txt"]})
+    new_manifest_ref = _seal_and_store(store, manifest)
+    refs = [new_manifest_ref if r.artifact_type == "RepositoryManifest" else r for r in refs]
+
+    state = _run_s03_and_s04(store, _state(refs))
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+
+    # Simulate a CI-side dependency upgrade that happened between A2.30's
+    # snapshot and this remeasurement pass -- the patch itself never
+    # touched this file.
+    (workspace_path / "requirements.txt").write_text("requests==2.32.0\n")
+
+    runtime = build_s05_runtime(ports=_ports(store))
+    for node_id in S05_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+        if state["node_routes"][node_id] == "rejected":
+            break
+
+    assert state["node_routes"]["S05.20"] == "continue"  # S05.20 itself never routes rejected
+    isolation_ref = next(
+        r for r in cast("list[ArtifactRef]", state["artifact_refs"])
+        if r.artifact_type == "IsolationReport"
+    )
+    from production_optimizer.contracts.s05 import IsolationReport
+
+    isolation = _model_from_ref(store, isolation_ref, IsolationReport)
+    assert isolation.isolated is False
+    violation = next(v for v in isolation.violations if v.kind == "dependency_drift")
+    assert "requirements.txt" in violation.detail
+
+    if workspace_path.exists():
+        import shutil
+
+        shutil.rmtree(workspace_path.parent, ignore_errors=True)
+
+
+def test_s05_20_does_not_double_flag_a_manifest_file_the_patch_itself_changed(
+    tmp_path: Path,
+) -> None:
+    """A manifest file the patch legitimately owns changing is already
+    caught by the existing changed_files/manifest_files intersection check
+    -- the new content-digest check must not also flag it a second time."""
+
+    repo = _seed_repo(tmp_path, initial_expr="1 + 1")
+    original_requirements = "requests==2.31.0\n"
+    (repo / "requirements.txt").write_text(original_requirements)
+    store = _MemoryArtifactStore()
+    refs = _seed_case(store, repo=repo, before="1 + 1", after="2 + 2", baseline_unit_failing=True)
+
+    snapshot_ref = _ref_by_type(_state(refs), "SourceSnapshot")
+    snapshot = _model_from_ref(store, snapshot_ref, SourceSnapshot)
+    snapshot = snapshot.model_copy(
+        update={
+            "files": [
+                FileIdentity(
+                    relative_path="requirements.txt",
+                    content_digest=sha256_digest(original_requirements.encode("utf-8")),
+                )
+            ]
+        }
+    )
+    new_snapshot_ref = _seal_and_store(store, snapshot)
+    refs = [new_snapshot_ref if r.artifact_type == "SourceSnapshot" else r for r in refs]
+
+    manifest_ref = _ref_by_type(_state(refs), "RepositoryManifest")
+    manifest = _model_from_ref(store, manifest_ref, RepositoryManifest)
+    manifest = manifest.model_copy(update={"manifest_files": ["requirements.txt"]})
+    new_manifest_ref = _seal_and_store(store, manifest)
+    refs = [new_manifest_ref if r.artifact_type == "RepositoryManifest" else r for r in refs]
+
+    # Add a task/file so S03 actually patches requirements.txt itself --
+    # only app.py is scoped in _seed_case's own TaskList, so patch it here
+    # by editing app.py (the real scoped file) plus requirements.txt
+    # directly in the source repo before S03 runs, then let S03 copy it
+    # into the workspace unmodified (simulating S03 legitimately owning
+    # this change is out of scope for this test -- what matters is the
+    # workspace's requirements.txt already differs from source at S03.20
+    # copy time, so patch.changed_files will include it).
+    (repo / "requirements.txt").write_text("requests==2.32.0\n")
+
+    state = _run_s03_and_s04(store, _state(refs))
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+
+    runtime = build_s05_runtime(ports=_ports(store))
+    for node_id in S05_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+        if state["node_routes"][node_id] == "rejected":
+            break
+
+    isolation_ref = next(
+        r for r in cast("list[ArtifactRef]", state["artifact_refs"])
+        if r.artifact_type == "IsolationReport"
+    )
+    from production_optimizer.contracts.s05 import IsolationReport
+
+    isolation = _model_from_ref(store, isolation_ref, IsolationReport)
+    drift_violations = [v for v in isolation.violations if v.kind == "dependency_drift"]
+    # Exactly one violation for requirements.txt, not two (the intersection
+    # check and the digest check must not both fire for the same cause).
+    assert len(drift_violations) == 1
+
+    if workspace_path.exists():
+        import shutil
+
+        shutil.rmtree(workspace_path.parent, ignore_errors=True)

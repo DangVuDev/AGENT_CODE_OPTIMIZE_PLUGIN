@@ -46,6 +46,25 @@ constants living beside the loop-driving logic, not inside the node that
 merely contributes to the counter); `09-langgraph-operating-model.md`'s own
 "Cross-Step Acceptance" section requires "all loops are bounded", so an
 exhausted phase halts the case here rather than retrying forever.
+
+This budget is shared across both failure classes by deliberate choice, not
+an oversight: `s03_revision_attempts` also drives every S03/S04/S05/S06
+artifact's pass-scoped id and `NodeRuntime`'s idempotency-key derivation
+(see that field's own docstring in `contracts/state.py`), so splitting it
+into independent per-class counters would require a second, derived "pass
+number" for artifact scoping anyway -- reintroducing the same shared-state
+coupling a split would be meant to avoid, while adding real risk to
+idempotency-key/artifact-id uniqueness across passes (every S03.80/S04.90/
+S05.*/S06.* artifact currently reads the *same* single value, guaranteed
+consistent by construction). The real, acknowledged tradeoff: exhausting
+the shared budget via one failure class (e.g. several genuine S04.80
+verification failures) can leave less headroom than ideal for a fresh,
+never-before-tried attempt of the other class (a S06.50 FIX_ONE_PART for an
+unrelated, localized issue) -- a fairness/availability concern, not a
+correctness one, since the case still halts safely rather than looping
+forever. A full per-failure-class split (with its own separate pass-number
+derivation for artifact scoping) is a larger, separate future refactor if
+this fairness gap ever proves material in practice -- not attempted here.
 """
 
 from __future__ import annotations
@@ -67,7 +86,12 @@ from .subgraphs import (
 )
 from .subgraphs.common import END, START, StateGraph, completed
 
-_MAX_PHASE_REPAIR_ATTEMPTS = 3
+# Deliberately larger than a single-failure-class budget would need, since
+# this one counter is shared between S04.80 verification failures and
+# S06.50 FIX_ONE_PART decisions (see the module docstring above) -- enough
+# headroom that a few genuine verification retries don't fully starve a
+# later, unrelated fix attempt in the same phase.
+_MAX_PHASE_REPAIR_ATTEMPTS = 5
 
 
 def _verification_outcome(state: OptimizationState) -> str:
