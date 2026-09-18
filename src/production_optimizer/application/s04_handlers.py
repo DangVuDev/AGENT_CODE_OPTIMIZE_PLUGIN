@@ -435,7 +435,12 @@ def _s04_90(state: OptimizationState, ports: NodePorts) -> NodeExecution:
 
     if not results:
         from production_optimizer.contracts.s04 import CheckResult
-        results = [CheckResult(kind="integration", name="no-checks-ran", passed=True)]
+        results = [CheckResult(
+            command_id="no-checks-ran",
+            kind="integration",
+            exit_code=0,
+            passed=True,
+        )]
 
     stage = f"S04.90-{active_phase_id}-pass{pass_number}"
     report = _seal(
