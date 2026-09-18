@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import shutil
 import subprocess
 import tempfile
 import zipfile
@@ -31,6 +32,53 @@ from production_optimizer.ports.artifacts import ArtifactStore
 CapabilityFn = Callable[[WorkerJob], ArtifactRef]
 
 _OUTPUT_TAIL_BYTES = 8000
+
+
+def run_repository_command(
+    argv: list[str], *, cwd: Path, timeout_seconds: int
+) -> subprocess.CompletedProcess[str]:
+    """`subprocess.run` for a `RepositoryCommand.argv` a requester declared
+    (`WorkloadContract.commands`), not a fixed control-plane executable like
+    `git`/`docker` -- shared by every command-kind worker capability (A2's
+    `_run`/`_run_benchmark`, S04's `_run`, S05's `_run_benchmark`).
+
+    Two real gaps this closes, both hit running a declared `npx ...` command
+    on Windows: (1) Windows' `CreateProcess` does not consult `PATHEXT` the
+    way a real shell does, so `subprocess.run(["npx", ...])` raises
+    `FileNotFoundError` even though `npx.cmd` is really on PATH and
+    `shutil.which("npx")` finds it -- resolving `argv[0]` through
+    `shutil.which` first fixes that without needing `shell=True` (which
+    would reintroduce real shell-injection risk for a requester-declared
+    string). (2) None of these four call sites previously caught the
+    resulting `OSError`, so an unresolvable executable (a genuine typo, or a
+    tool never installed in this environment) crashed the whole node with an
+    unhandled traceback instead of surfacing as an ordinary failing check --
+    indistinguishable, from the case's perspective, from every other crash
+    this project already treats as unacceptable for a transient/expected
+    failure (see `s03_agent_loop._write_file`'s identical fix for
+    `OSError`). A resolution failure is reported as `exit_code=-1` with the
+    reason in `stderr`, exactly like `LocalWorkerBroker`'s own "worker job
+    was not accepted" shape -- a real, attributable failure, not a fabricated
+    success.
+    """
+
+    resolved = shutil.which(argv[0]) if argv else None
+    resolved_argv = [resolved, *argv[1:]] if resolved else argv
+    try:
+        return subprocess.run(
+            resolved_argv,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except OSError as exc:
+        return subprocess.CompletedProcess(
+            args=argv, returncode=-1, stdout="", stderr=f"could not run {argv!r}: {exc}"
+        )
 
 # A2.31 bakes this exact relative filename into a "benchmark"-kind
 # `RepositoryCommand.argv` (as `--benchmark-json=<name>`) so the command's
@@ -182,15 +230,8 @@ def build_local_command_capabilities(
         with _execution_workspace(
             artifacts, tenant_id=tenant_id, job=job, fallback=command.working_directory
         ) as workspace:
-            result = subprocess.run(
-                command.argv,
-                cwd=workspace,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=job.timeout_seconds,
-                check=False,
+            result = run_repository_command(
+                command.argv, cwd=workspace, timeout_seconds=job.timeout_seconds
             )
         output = {
             "command_id": command.command_id,
@@ -225,15 +266,8 @@ def build_local_command_capabilities(
         with _execution_workspace(
             artifacts, tenant_id=tenant_id, job=job, fallback=command.working_directory
         ) as workspace:
-            result = subprocess.run(
-                command.argv,
-                cwd=workspace,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=job.timeout_seconds,
-                check=False,
+            result = run_repository_command(
+                command.argv, cwd=workspace, timeout_seconds=job.timeout_seconds
             )
             json_path = workspace / BENCHMARK_JSON_FILENAME
             if json_path.exists():
@@ -399,6 +433,7 @@ def build_local_command_capabilities(
         )
 
     return {
+        "build": _run,
         "unit": _run,
         "lint": _run,
         "type": _run,
@@ -407,4 +442,9 @@ def build_local_command_capabilities(
     }
 
 
-__all__ = ["BENCHMARK_JSON_FILENAME", "CapabilityFn", "build_local_command_capabilities"]
+__all__ = [
+    "BENCHMARK_JSON_FILENAME",
+    "CapabilityFn",
+    "build_local_command_capabilities",
+    "run_repository_command",
+]

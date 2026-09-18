@@ -59,7 +59,15 @@ class ManualCasePayload(ContractModel):
     criteria: list[CriterionInput] = Field(default_factory=list, max_length=32)
     workload_id: str | None = Field(default=None, min_length=1, max_length=255)
     environment_id: str | None = Field(default=None, min_length=1, max_length=255)
-    command_id: str | None = Field(default=None, min_length=1, max_length=255)
+    # Requester-declared commands, keyed by the exact `RepositoryCommand.kind`
+    # A2.31 will bind them to (`a2_handlers/nodes/a2_31_*.py`) -- e.g.
+    # {"unit": "go test ./...", "build": "go build ./..."} for a repository
+    # A2.30's own detection can't recognize (its `tool_coverage` signals are
+    # Python-only: pytest/ruff/mypy/pytest-benchmark). Declaring a kind here
+    # always wins over A2.31's own pyproject.toml-convention detection for
+    # that same kind, mirroring the old single-command_id's "user-declared
+    # beats detected" priority, just no longer limited to one "unit" command.
+    commands: dict[Literal["build", "lint", "type", "unit"], str] | None = None
     execution_profile: Literal["legacy_discovery", "docker_compose"] = "legacy_discovery"
     compose_file: str | None = Field(default=None, min_length=1, max_length=2048)
     application_services: list[str] = Field(default_factory=list, max_length=64)
@@ -94,7 +102,7 @@ class ManualCasePayload(ContractModel):
             self.unit,
             self.workload_id,
             self.environment_id,
-            self.command_id,
+            self.commands,
         )
         if (
             self.raw_text is None
@@ -149,7 +157,7 @@ class RawRequestDraft(ArtifactEnvelope):
     workload_id: str | None = Field(default=None, max_length=255)
     dataset_id: str | None = Field(default=None, max_length=255)
     environment_id: str | None = Field(default=None, max_length=255)
-    command_id: str | None = Field(default=None, max_length=255)
+    commands: dict[Literal["build", "lint", "type", "unit"], str] | None = Field(default=None)
     extraction_confidence: float = Field(ge=0, le=1)
     unresolved_fields: list[str] = Field(default_factory=list)
     requester_hypothesis: str | None = Field(default=None, max_length=2000)
@@ -251,7 +259,7 @@ class WorkloadContract(ContractModel):
     workload_id: str = Field(min_length=1)
     dataset_id: str | None = None
     environment_id: str = Field(min_length=1)
-    command_id: str | None = None
+    commands: dict[Literal["build", "lint", "type", "unit"], str] | None = None
     repetitions: int = Field(ge=1)
     warmup_runs: int = Field(ge=0)
     concurrency: int = Field(ge=1)

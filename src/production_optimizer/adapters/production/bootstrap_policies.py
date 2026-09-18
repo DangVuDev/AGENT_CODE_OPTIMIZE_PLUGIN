@@ -8,7 +8,7 @@ from .python_policy import DeterministicPythonPolicy
 
 # The command kinds A2.31 is allowed to detect and A2.50 to authorize.
 _ALLOWED_COMMAND_KINDS = frozenset(
-    {"unit", "lint", "type", "benchmark", "ci", "compose_evaluation"}
+    {"build", "unit", "lint", "type", "benchmark", "ci", "compose_evaluation"}
 )
 
 # `source_type` vocabulary shared with `a2_handlers._EVIDENCE_TYPE_SOURCE_TYPE`.

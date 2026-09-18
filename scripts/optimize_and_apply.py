@@ -137,8 +137,27 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--unit", required=True, help="Unit for --metric (e.g. ms, exit_code).")
     parser.add_argument(
         "--command-id",
-        required=True,
-        help="Command to measure for this workload (e.g. pytest, ruff, cargo test).",
+        default=None,
+        help="Deprecated alias for --unit-command; error if both are given with different values.",
+    )
+    parser.add_argument(
+        "--build-command", default=None, help="Real 'go build ./...'-style build command."
+    )
+    parser.add_argument(
+        "--lint-command", default=None, help="Real lint command (e.g. 'golangci-lint run')."
+    )
+    parser.add_argument(
+        "--type-command", default=None, help="Real type-check command, if the language has one."
+    )
+    parser.add_argument(
+        "--unit-command",
+        default=None,
+        help=(
+            "Real unit-test command to measure for this workload (e.g. 'go test ./...', "
+            "'cargo test'). At least one of --build/--lint/--type/--unit-command (or the "
+            "deprecated --command-id) is required -- A2's own convention detection only "
+            "recognizes Python's pytest/ruff/mypy."
+        ),
     )
     parser.add_argument("--workload-id", default=None, help="Default: <feature-id>-workload.")
     parser.add_argument("--environment-id", default="local-dev")
@@ -158,7 +177,30 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     add_model_runtime_args(parser)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.command_id and args.unit_command and args.command_id != args.unit_command:
+        parser.error("--command-id and --unit-command disagree -- pass only one")
+    args.unit_command = args.unit_command or args.command_id
+    if not any((args.build_command, args.lint_command, args.type_command, args.unit_command)):
+        parser.error(
+            "at least one of --build-command/--lint-command/--type-command/"
+            "--unit-command (or the deprecated --command-id) is required"
+        )
+    return args
+
+
+def _commands_kwarg(args: argparse.Namespace) -> dict[str, Any]:
+    commands = {
+        kind: value
+        for kind, value in (
+            ("build", args.build_command),
+            ("lint", args.lint_command),
+            ("type", args.type_command),
+            ("unit", args.unit_command),
+        )
+        if value
+    }
+    return {"commands": commands} if commands else {}
 
 
 def build_payload(args: argparse.Namespace) -> ManualCasePayload:
@@ -172,9 +214,9 @@ def build_payload(args: argparse.Namespace) -> ManualCasePayload:
         unit=args.unit,
         workload_id=args.workload_id or f"{args.feature_id}-workload",
         environment_id=args.environment_id,
-        command_id=args.command_id,
         actor_id=args.actor_id,
         actor_role=_ACTOR_ROLE,
+        **_commands_kwarg(args),
     )
 
 

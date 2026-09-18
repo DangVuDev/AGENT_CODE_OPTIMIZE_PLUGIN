@@ -43,7 +43,7 @@ def test_lane1_product_complete_hybrid_acceptance_flow(tmp_path: Path) -> None:
         workload_id="checkout-load",
         dataset_id="checkout-fixture-small",
         environment_id="local-dev",
-        command_id="pytest",
+        commands={"unit": "pytest"},
         actor_id="owner-1",
         actor_role="owner",
         policy_version="intake-policy-v1",

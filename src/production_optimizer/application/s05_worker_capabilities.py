@@ -9,14 +9,16 @@ extraction, same sample cap.
 from __future__ import annotations
 
 import json
-import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from pydantic import TypeAdapter
 
-from production_optimizer.application.a2_worker_capabilities import BENCHMARK_JSON_FILENAME
+from production_optimizer.application.a2_worker_capabilities import (
+    BENCHMARK_JSON_FILENAME,
+    run_repository_command,
+)
 from production_optimizer.contracts.a2 import RepositoryCommand, RepositoryManifest
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import canonical_json, sha256_digest
@@ -59,15 +61,8 @@ def build_s05_capabilities(
 
     def _run_benchmark(job: WorkerJob) -> ArtifactRef:
         command = _find_command(artifacts, tenant_id=tenant_id, job=job)
-        result = subprocess.run(
-            command.argv,
-            cwd=workspace_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=job.timeout_seconds,
-            check=False,
+        result = run_repository_command(
+            command.argv, cwd=workspace_root, timeout_seconds=job.timeout_seconds
         )
 
         json_path = workspace_root / BENCHMARK_JSON_FILENAME

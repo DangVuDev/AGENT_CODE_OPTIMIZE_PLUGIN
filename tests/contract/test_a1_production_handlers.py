@@ -249,7 +249,7 @@ def test_a1_freezes_docker_compose_evaluation_contract(tmp_path: Path) -> None:
             "execution_profile": "docker_compose",
             "compose_file": "compose.yaml",
             "application_services": ["app"],
-            "command_id": None,
+            "commands": None,
             "guardrail_metric_id": "correctness",
             "evaluations": [
                 EvaluationSpec(
@@ -272,7 +272,11 @@ def test_a1_freezes_docker_compose_evaluation_contract(tmp_path: Path) -> None:
     assert request.execution is not None
     assert request.execution.compose_file == "compose.yaml"
     assert request.execution.evaluations[0].evaluation_id == "checkout-feature"
-    assert request.workload.command_id == "checkout-feature"
+    # `commands` is never derived from the evaluation id (unlike the old
+    # single `command_id`, which used to be filled with the evaluation_id as
+    # a non-executable placeholder A2.31 had to special-case around) -- the
+    # real evaluation argv lives in `execution.evaluations[].command` only.
+    assert request.workload.commands is None
 
 
 def test_manual_case_payload_accepts_partial_intent_for_clarification(tmp_path: Path) -> None:
@@ -286,7 +290,7 @@ def test_manual_case_payload_accepts_partial_intent_for_clarification(tmp_path: 
         "unit": "ms",
         "workload_id": "checkout-load",
         "environment_id": "local-dev",
-        "command_id": "pytest",
+        "commands": {"unit": "pytest"},
         "actor_id": "requester-1",
     }
     for omitted_field in (
@@ -297,7 +301,7 @@ def test_manual_case_payload_accepts_partial_intent_for_clarification(tmp_path: 
         "unit",
         "workload_id",
         "environment_id",
-        "command_id",
+        "commands",
     ):
         assert ManualCasePayload.model_validate({**base, omitted_field: None})
 
@@ -397,7 +401,7 @@ def _full_structured_payload(tmp_path: Path, *, actor_role: str = "owner") -> Ma
         unit="ms",
         workload_id="checkout-load",
         environment_id="local-dev",
-        command_id="pytest",
+        commands={"unit": "pytest"},
         actor_id="requester-1",
         actor_role=actor_role,
     )
@@ -432,7 +436,7 @@ def test_a1_61_seals_every_declared_criterion_with_its_own_weight(tmp_path: Path
         ],
         workload_id="checkout-load",
         environment_id="local-dev",
-        command_id="pytest",
+        commands={"unit": "pytest"},
         actor_id="requester-1",
         actor_role="owner",
     )
@@ -589,7 +593,6 @@ def test_a1_extracts_raw_request_and_freezes_metric_specific_evidence(tmp_path: 
                 "workload_id": "checkout-load",
                 "dataset_id": None,
                 "environment_id": "local-dev",
-                "command_id": "pytest",
                 "requester_hypothesis": "Database calls dominate latency",
                 "confidence": 0.94,
             }
@@ -642,7 +645,6 @@ def test_a1_mixed_input_conflict_routes_to_clarification(tmp_path: Path) -> None
                 "unit": "ms",
                 "workload_id": "checkout-load",
                 "environment_id": "local-dev",
-                "command_id": "pytest",
                 "confidence": 0.9,
             }
         ]

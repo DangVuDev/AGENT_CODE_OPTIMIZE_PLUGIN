@@ -695,7 +695,14 @@ def test_a2_31_resolves_repository_owned_commands(tmp_path: Path) -> None:
     verification = _model_from_ref(store, verification_ref, VerificationManifest)
     kinds = {c.kind for c in verification.commands}
     assert kinds == {"unit", "lint", "type"}
-    assert verification.rejected_commands == ["benchmark: no pytest-benchmark dependency detected"]
+    # "build" has no Python pyproject.toml convention at all (unlike
+    # unit/lint/type/benchmark) -- it is only ever available via a declared
+    # `WorkloadContract.commands["build"]`, which this Python fixture doesn't
+    # set, so it is always rejected here alongside "benchmark".
+    assert verification.rejected_commands == [
+        "build: no build command declared",
+        "benchmark: no pytest-benchmark dependency detected, and none declared",
+    ]
 
 
 def test_a2_31_rejects_unconfigured_tools(tmp_path: Path) -> None:
@@ -714,22 +721,30 @@ def test_a2_31_rejects_unconfigured_tools(tmp_path: Path) -> None:
     verification_ref = _ref_by_type(state, "VerificationManifest")
     verification = _model_from_ref(store, verification_ref, VerificationManifest)
     assert verification.commands == []
-    assert len(verification.rejected_commands) == 5
+    # unit, build, lint, type, benchmark all rejected (no tool_coverage
+    # convention detected and none declared), plus the LLM fallback itself
+    # rejecting since no ModelProviderPort is wired into this test's ports.
+    assert len(verification.rejected_commands) == 6
 
 
-def test_a2_31_prefers_the_requester_declared_command_id(tmp_path: Path) -> None:
-    """`ManualCasePayload.command_id` (via A1's `WorkloadContract.command_id`)
-    is the highest-trust signal -- A2.31 must use it verbatim rather than
-    guess from pyproject.toml conventions, and it must never require the
-    `act`/CI-replay job-detection this test replaces (removed: `act -l`'s
-    job selection had no way to know which job actually ran the tests --
-    see contracts/a2.py's `RepositoryCommand.source` docstring)."""
+def test_a2_31_prefers_the_requester_declared_commands(tmp_path: Path) -> None:
+    """`ManualCasePayload.commands` (via A1's `WorkloadContract.commands`)
+    is the highest-trust signal -- A2.31 must use a declared kind verbatim
+    rather than guess from pyproject.toml conventions for that same kind,
+    and it must never require the `act`/CI-replay job-detection this test
+    replaces (removed: `act -l`'s job selection had no way to know which job
+    actually ran the tests -- see contracts/a2.py's `RepositoryCommand.source`
+    docstring). Also proves a repository this module's own Python-only
+    `tool_coverage` detection can't recognize (e.g. Go) can still get a real
+    `build` check purely by declaring one -- no pyproject.toml convention
+    exists for `build` at all."""
 
     store = _MemoryArtifactStore()
     repo = tmp_path / "repo"
     repo.mkdir()
     # Also has a real pyproject.toml pytest convention, to prove the
-    # declared command_id wins over -- not just alongside -- that heuristic.
+    # declared "unit" command wins over -- not just alongside -- that
+    # heuristic.
     (repo / "pyproject.toml").write_text("[tool.pytest.ini_options]\ntestpaths = ['tests']\n")
     (repo / "tests").mkdir()
     (repo / "tests" / "test_sample.py").write_text("def test_ok():\n    assert True\n")
@@ -738,7 +753,7 @@ def test_a2_31_prefers_the_requester_declared_command_id(tmp_path: Path) -> None
     request = base_request.model_copy(
         update={
             "workload": base_request.workload.model_copy(
-                update={"command_id": "pytest tests/ -v"}
+                update={"commands": {"unit": "pytest tests/ -v", "build": "go build ./..."}}
             )
         }
     )
@@ -761,10 +776,75 @@ def test_a2_31_prefers_the_requester_declared_command_id(tmp_path: Path) -> None
     verification_ref = _ref_by_type(state, "VerificationManifest")
     verification = _model_from_ref(store, verification_ref, VerificationManifest)
     unit_commands = [c for c in verification.commands if c.kind == "unit"]
-    assert len(unit_commands) == 1, "declared command_id must not duplicate with pyproject.toml"
+    assert len(unit_commands) == 1, "declared 'unit' must not duplicate with pyproject.toml"
     assert unit_commands[0].source == "user_declared"
     assert unit_commands[0].argv == ["pytest", "tests/", "-v"]
-    assert unit_commands[0].command_id == "pytest tests/ -v"
+
+    build_commands = [c for c in verification.commands if c.kind == "build"]
+    assert len(build_commands) == 1
+    assert build_commands[0].source == "user_declared"
+    assert build_commands[0].argv == ["go", "build", "./..."]
+
+
+def test_a2_31_still_honors_declared_commands_under_docker_compose(tmp_path: Path) -> None:
+    """Regression test for a real crash: `workload.commands` and
+    `execution.evaluations[].command` are two independent channels (host-side
+    build/lint/type/unit checks vs. the in-container evaluation A2.50
+    dispatches), but `_detect_repository_commands` used to force `declared`
+    empty whenever `request.execution is not None` -- a leftover from the old
+    single `command_id`, which really was unusable under `docker_compose`
+    (A1 filled it with a non-executable `evaluation_id` placeholder). A real
+    `commands` declaration has no such problem and must still be honored, or
+    a Go repository run with `--execution-profile docker_compose` gets an
+    empty `RepositoryManifest.commands` -- which then crashes S04.90's
+    `VerificationReport(check_results=...)` seal (`min_length=1`)."""
+
+    store = _MemoryArtifactStore()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    base_request = _build_request(allowed_root_id=str(repo.parent), relative_path="repo")
+    request = base_request.model_copy(
+        update={
+            "workload": base_request.workload.model_copy(
+                update={"commands": {"unit": "go test ./...", "build": "go build ./..."}}
+            ),
+            "execution": ComposeExecutionContract(
+                compose_file="compose.yaml",
+                application_services=["app"],
+                evaluations=[
+                    EvaluationSpec(
+                        evaluation_id="checkout-http",
+                        command=ContainerCommandSpec(
+                            service="app", argv=["sh", "scripts/evaluate-checkout.sh"]
+                        ),
+                        repetitions=3,
+                        warmup_runs=1,
+                        expected_metric_ids={"p95_latency_ms"},
+                    )
+                ],
+            ),
+        }
+    )
+    request_content = canonical_json(request)
+    request_ref = ArtifactRef(
+        artifact_type="OptimizationRequest",
+        schema_version="1.0",
+        artifact_id="declared-command-compose-request",
+        content_digest=sha256_digest(request_content),
+        uri="memory://declared-command-compose-request",
+    )
+    store.seed_json(request_ref, request_content)
+    state = _state(request_ref)
+    runtime = build_a2_runtime(ports=_ports(store))
+
+    state = _advance(runtime, "A2.20", state)
+    state = _advance(runtime, "A2.30", state)
+    state = _advance(runtime, "A2.31", state)
+
+    verification_ref = _ref_by_type(state, "VerificationManifest")
+    verification = _model_from_ref(store, verification_ref, VerificationManifest)
+    kinds = {c.kind for c in verification.commands}
+    assert kinds == {"unit", "build"}, "docker_compose must not discard declared commands"
 
 
 class _ScriptedA2ModelProvider:

@@ -23,13 +23,13 @@ requester-declared `kind="unit"` command is something else entirely (e.g.
 from __future__ import annotations
 
 import re
-import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from pydantic import TypeAdapter
 
+from production_optimizer.application.a2_worker_capabilities import run_repository_command
 from production_optimizer.contracts.a2 import RepositoryCommand, RepositoryManifest
 from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.canonical import canonical_json, sha256_digest
@@ -123,15 +123,8 @@ def build_s04_capabilities(
             argv, coverage_requested = _coverage_argv(command, manifest)
         else:
             argv, coverage_requested = command.argv, False
-        result = subprocess.run(
-            argv,
-            cwd=workspace_root,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=job.timeout_seconds,
-            check=False,
+        result = run_repository_command(
+            argv, cwd=workspace_root, timeout_seconds=job.timeout_seconds
         )
         output: dict[str, Any] = {
             "command_id": command.command_id,

@@ -362,7 +362,6 @@ def test_a3_64_binds_docker_compose_evaluation_validation_command(tmp_path: Path
                 warmup_runs=1,
                 concurrency=1,
                 cache_state="warm",
-                command_id="checkout-http",
             ),
             "evidence_requirements": [
                 EvidenceRequirement(

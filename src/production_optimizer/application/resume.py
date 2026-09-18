@@ -49,6 +49,7 @@ def resume_case(
     command: ResumeInterruptCommand,
     actor: ActorContext,
     now: datetime,
+    config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Resume a compiled graph run that previously halted on `pending_interrupt`.
 
@@ -98,4 +99,17 @@ def resume_case(
         "resume_target_node": interrupt.stage,
         "pending_interrupt": None,
     }
+    if config is not None:
+        # A checkpointed graph (see `build_shared_workflow_graph`'s own
+        # `interrupt_after`) must resume from where it actually paused, not
+        # restart from `START` -- re-invoking with the *full* `resumed_state`
+        # as input reruns every already-completed node (S01's own nodes
+        # included), which reseals `RankingResult` with a fresh `created_at`
+        # under the same pass-scoped `artifact_id`, hard-conflicting with the
+        # one already recorded via `merge_artifact_refs`. `update_state`
+        # merges these overrides into the persisted checkpoint in place;
+        # `invoke(None, ...)` then continues execution from exactly the node
+        # after the one that halted, same as a fresh `interrupt_after` pause.
+        graph.update_state(config, resumed_state)
+        return graph.invoke(None, config=config)
     return graph.invoke(resumed_state)

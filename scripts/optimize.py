@@ -2,7 +2,7 @@
 
     python scripts/optimize.py <path-to-repo> --feature-id checkout \
         --metric p95_latency_ms --direction minimize --target 180 --unit ms \
-        --command-id pytest
+        --unit-command "pytest"
 
 Input is deliberately structured, not free text: a feature to optimize plus
 an explicit primary metric/direction/target/unit. A1 no longer attempts to
@@ -25,7 +25,14 @@ small pre-built one, or point this at your own project:
 
     python scripts/optimize.py fixtures/sample-repo --feature-id tests \
         --metric unit_command_result --direction minimize --target 0 --unit exit_code \
-        --command-id pytest
+        --unit-command "pytest"
+
+For a non-Python repository, A2's own convention detection (pytest/ruff/mypy)
+finds nothing -- declare the real commands per kind instead:
+
+    python scripts/optimize.py fixtures/go-checkout --feature-id checkout \
+        --metric unit_command_result --direction minimize --target 0 --unit exit_code \
+        --build-command "go build ./..." --unit-command "go test ./..."
 
 For a repository that is not runnable directly on the host (needs a database,
 a specific runtime, etc.), pass --execution-profile docker_compose instead:
@@ -149,9 +156,29 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--command-id",
         default=None,
         help=(
-            "Command to measure for this workload (e.g. pytest, ruff, cargo test). "
-            "Required for --execution-profile legacy_discovery; ignored/unused for "
-            "docker_compose (the real command lives in --eval-command instead)."
+            "Deprecated alias for --unit-command (kept for existing scripts/muscle "
+            "memory). Same 'unit' kind; error if both are given with different values."
+        ),
+    )
+    parser.add_argument(
+        "--build-command", default=None, help="Real 'go build ./...'-style build command."
+    )
+    parser.add_argument(
+        "--lint-command", default=None, help="Real lint command (e.g. 'golangci-lint run')."
+    )
+    parser.add_argument(
+        "--type-command", default=None, help="Real type-check command, if the language has one."
+    )
+    parser.add_argument(
+        "--unit-command",
+        default=None,
+        help=(
+            "Real unit-test command to measure for this workload (e.g. 'go test ./...', "
+            "'cargo test'). At least one of --build/--lint/--type/--unit-command is "
+            "required for --execution-profile legacy_discovery (A2's own convention "
+            "detection only recognizes Python's pytest/ruff/mypy); all four are "
+            "ignored/unused for docker_compose (the real command lives in "
+            "--eval-command instead)."
         ),
     )
     parser.add_argument("--workload-id", default=None, help="Default: <feature-id>-workload.")
@@ -200,9 +227,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         choices=["legacy_discovery", "docker_compose"],
         default="legacy_discovery",
         help=(
-            "legacy_discovery (default): A2 runs --command-id directly on the host via "
-            "LocalWorkerBroker. docker_compose: A2 builds/starts --compose-file for real "
-            "and execs --eval-command inside --eval-service."
+            "legacy_discovery (default): A2 runs the declared/detected commands "
+            "directly on the host via LocalWorkerBroker. docker_compose: A2 "
+            "builds/starts --compose-file for real and execs --eval-command inside "
+            "--eval-service."
         ),
     )
     compose.add_argument(
@@ -259,8 +287,21 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         ),
     )
     args = parser.parse_args(argv)
-    if args.execution_profile == "legacy_discovery" and not args.command_id:
-        parser.error("--command-id is required for --execution-profile legacy_discovery")
+    if (
+        args.command_id
+        and args.unit_command
+        and args.command_id != args.unit_command
+    ):
+        parser.error("--command-id and --unit-command disagree -- pass only one")
+    args.unit_command = args.unit_command or args.command_id
+    if args.execution_profile == "legacy_discovery" and not any(
+        (args.build_command, args.lint_command, args.type_command, args.unit_command)
+    ):
+        parser.error(
+            "at least one of --build-command/--lint-command/--type-command/"
+            "--unit-command (or the deprecated --command-id) is required for "
+            "--execution-profile legacy_discovery"
+        )
     if args.execution_profile == "docker_compose":
         missing = [
             name
@@ -275,6 +316,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         if missing:
             parser.error("--execution-profile docker_compose also requires: " + ", ".join(missing))
     return args
+
+
+def _commands_kwarg(args: argparse.Namespace) -> dict[str, Any]:
+    commands = {
+        kind: value
+        for kind, value in (
+            ("build", args.build_command),
+            ("lint", args.lint_command),
+            ("type", args.type_command),
+            ("unit", args.unit_command),
+        )
+        if value
+    }
+    return {"commands": commands} if commands else {}
 
 
 def build_payload(args: argparse.Namespace) -> ManualCasePayload:
@@ -313,13 +368,13 @@ def build_payload(args: argparse.Namespace) -> ManualCasePayload:
         unit=args.unit,
         workload_id=args.workload_id or f"{args.feature_id}-workload",
         environment_id=args.environment_id,
-        command_id=args.command_id,
         execution_profile=args.execution_profile,
         guardrail_metric_id=args.guardrail_metric_id,
         maximum_worker_seconds=args.maximum_worker_seconds,
         deadline_seconds=args.deadline_seconds,
         actor_id=args.actor_id,
         actor_role="owner",  # auto-approves at A1.90 -- this CLI has no interrupt-resume flow
+        **_commands_kwarg(args),
         **compose_kwargs,
     )
 

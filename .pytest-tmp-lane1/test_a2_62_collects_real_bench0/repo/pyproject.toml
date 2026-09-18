@@ -1,5 +1,0 @@
-[project]
-name = "bench-demo"
-dependencies = ["pytest-benchmark>=4.0"]
-[tool.pytest.ini_options]
-testpaths = ["tests"]

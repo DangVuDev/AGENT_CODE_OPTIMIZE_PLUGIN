@@ -61,7 +61,7 @@ def handle_a1_70_resolve_repository_owned_workload_scenario_dataset_environment(
             workload_id=draft.workload_id or "",
             dataset_id=draft.dataset_id,
             environment_id=draft.environment_id or "",
-            command_id=draft.command_id,
+            commands=draft.commands,
             repetitions=payload.repetitions or defaults["repetitions"],
             warmup_runs=(
                 payload.warmup_runs if payload.warmup_runs is not None else defaults["warmup_runs"]

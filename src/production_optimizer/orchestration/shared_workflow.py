@@ -131,7 +131,32 @@ def _policy_outcome(state: OptimizationState) -> str:
     return outcome if outcome in {"keep", "fix_one_part", "revert", "escalate"} else "halt"
 
 
-def build_shared_workflow_graph(runtime: NodeRuntime) -> Any:
+def build_shared_workflow_graph(
+    runtime: NodeRuntime,
+    *,
+    checkpointer: Any | None = None,
+    interrupt_after: list[str] | None = None,
+) -> Any:
+    """`interrupt_after` (e.g. `["S02"]`) lets a caller pause this one
+    compiled graph right after a given top-level stage to inspect state --
+    then resume with `graph.invoke(None, config=...)` -- without ever
+    re-invoking S01/S02 as a second, separate graph on the same case.
+    Re-running S01/S02 that way is unsafe: `s02_revision_attempts` (like
+    `a3_revision_attempts`) increments on *every* pass through its owning
+    node, including a clean first-try success (see `s02_handlers.
+    _s02_81`'s own docstring on why), so it is never `0` again once that
+    stage has completed once. A second, independent `.invoke()` of a stage's
+    own standalone graph would derive every one of its nodes' idempotency
+    keys with that now-nonzero suffix, missing the cache that stage's first
+    run left keyed without it -- forcing a real recompute that reseals
+    `ExecutionPlan` (not pass-scoped, unlike `PlanQualityReport`) with a
+    fresh `created_at`/digest under the same `artifact_id`, hard-conflicting
+    with the one already in `artifact_refs` via `merge_artifact_refs`. A
+    single compiled graph with a real LangGraph interrupt has no such
+    problem: every node still executes exactly once for the whole run,
+    `interrupt_after`/`checkpointer` requires a checkpointer.
+    """
+
     builder = StateGraph(OptimizationState)
     builder.add_node("S01", build_s01_graph(runtime))
     builder.add_node("S02", build_s02_graph(runtime))
@@ -164,7 +189,7 @@ def build_shared_workflow_graph(runtime: NodeRuntime) -> Any:
     # once S07's report is published, regardless of S07.90's own gate
     # outcome (both terminate the graph the same way today).
     builder.add_edge("S07", END)
-    return builder.compile()
+    return builder.compile(checkpointer=checkpointer, interrupt_after=interrupt_after)
 
 
 __all__ = ["build_shared_workflow_graph"]

@@ -50,6 +50,24 @@ def test_authorizes_a_real_detected_command() -> None:
     assert decision.reasons
 
 
+def test_authorizes_a_declared_build_command() -> None:
+    """Regression test for a real crash: `a2_31_*.py` was given a new
+    `kind="build"` (for repositories -- e.g. Go -- with a `WorkloadContract.
+    commands["build"]` declaration but no Python build convention to detect)
+    without updating this fail-closed policy's own `_ALLOWED_COMMAND_KINDS`
+    allowlist to match. A2.50 authorizes every `VerificationManifest.
+    commands` entry through this exact policy, so a real, correctly-detected
+    `build` command was silently denied -- `authorized=False` routed A2.50
+    to `REJECTED`, and the whole case halted right there with no
+    `BaselineSnapshot`, no error message pointing at the real cause."""
+
+    decision = _policy().evaluate(
+        _request("a2.execution_authorization", _execution_facts(kind="build"))
+    )
+
+    assert decision.allowed is True
+
+
 def test_denies_unknown_command_kind() -> None:
     decision = _policy().evaluate(
         _request("a2.execution_authorization", _execution_facts(kind="deploy"))

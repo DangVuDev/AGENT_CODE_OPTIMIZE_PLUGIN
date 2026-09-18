@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, cast
 
-from production_optimizer.application.node_runtime import NodeExecution, NodePorts
+from production_optimizer.application.node_runtime import NodeExecution, NodePorts, NodeRoute
 from production_optimizer.contracts.s01 import SelectedSolution, SelectionApproval
 from production_optimizer.contracts.state import OptimizationState
 
@@ -43,6 +43,9 @@ def handle_s01_90_seal_selected_solution_after_approval(
     if approval is None:
         raise ValueError("S01.90 requires an approval decision from S01.80")
     excluded = cast("list[str]", state.get("s01_excluded_strategy_ids") or [])
+
+    if approval.decision == "rejected":
+        return NodeExecution(route=NodeRoute.REJECTED, updates={"artifact_refs": [ranking_ref]})
 
     selected = _seal(
         SelectedSolution(

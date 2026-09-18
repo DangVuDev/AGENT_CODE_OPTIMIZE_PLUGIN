@@ -784,17 +784,28 @@
           "title": "Cache State",
           "type": "string"
         },
-        "command_id": {
+        "commands": {
           "anyOf": [
             {
-              "type": "string"
+              "additionalProperties": {
+                "type": "string"
+              },
+              "propertyNames": {
+                "enum": [
+                  "build",
+                  "lint",
+                  "type",
+                  "unit"
+                ]
+              },
+              "type": "object"
             },
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Command Id"
+          "title": "Commands"
         },
         "concurrency": {
           "minimum": 1,

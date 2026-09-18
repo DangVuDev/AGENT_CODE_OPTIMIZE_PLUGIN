@@ -201,12 +201,31 @@ def _derive_idempotency_key(spec: NodeSpec, state: OptimizationState) -> str:
     new revision pass) — the base key above cannot distinguish those calls,
     so `_execute_idempotent` would replay pass 0's cached result forever
     instead of re-executing. Appending the revision counter *only when it is
-    nonzero* fixes that while leaving every pass-0 key (and every lane that
-    never sets any of these fields, i.e. A1/A2/B1/B2/C0/S01) byte-identical
-    to before — no existing idempotency key format changes. The three
-    counters never more than one applies to the same case (each lives only
-    inside its own stage's loop), so checking all three unconditionally is
-    safe.
+    nonzero, and only to that counter's own stage's nodes* fixes that while
+    leaving every pass-0 key (and every lane that never sets any of these
+    fields, i.e. A1/A2/B1/B2/C0/S01) byte-identical to before — no existing
+    idempotency key format changes.
+
+    The per-stage scoping is load-bearing, not cosmetic: `scripts/run.py`'s
+    `full` tag runs S01/S02 to completion as their own standalone graphs
+    first (to print the sealed plan for review) *then* invokes
+    `build_shared_workflow_graph`, whose compiled shape always starts at
+    `START -> S01` and so revisits S01/S02's own already-completed nodes
+    inside that second `.invoke()`. If `s02_revision_attempts` had ended
+    that first run nonzero (a real S02.81 redraft happened) and its suffix
+    were appended unconditionally to every node's key regardless of stage,
+    S01's nodes would derive a *different* key on this second pass
+    (`...:S01.10:...:rev2` instead of the original `...:S01.10:...`) than
+    the one already cached from the first run, forcing a real, silent
+    recompute of every S01 node -- which then reseals `RankingResult` with a
+    fresh `created_at` and a genuinely different `content_digest` under the
+    same pass-scoped `artifact_id`, hard-conflicting with the one already in
+    `artifact_refs` via `merge_artifact_refs`. Scoping each counter's suffix
+    to only the node_ids that stage's own loop can revisit (S02.10-90 for
+    `s02_revision_attempts`; A3.10-95 for `a3_revision_attempts`; the shared
+    PhaseLoop's S03/S04/S05/S06 nodes for `s03_revision_attempts`) keeps
+    every other stage's already-completed nodes cache-hitting unchanged, no
+    matter what some other stage's revision counter happened to reach.
 
     `resume_attempts` (see `application.resume.resume_case`) is the same
     fix for a different replay: a node that halted with `pending_interrupt`
@@ -222,7 +241,14 @@ def _derive_idempotency_key(spec: NodeSpec, state: OptimizationState) -> str:
     """
 
     base = f"{_require(state, 'case_id')}:{spec.node_id}:{spec.idempotency_key_version}"
-    for field in ("a3_revision_attempts", "s02_revision_attempts", "s03_revision_attempts"):
+    stage_prefix = spec.node_id.split(".")[0]
+    for field, stage_prefixes in (
+        ("a3_revision_attempts", {"A3"}),
+        ("s02_revision_attempts", {"S02"}),
+        ("s03_revision_attempts", {"S03", "S04", "S05", "S06"}),
+    ):
+        if stage_prefix not in stage_prefixes:
+            continue
         revision_pass = state.get(field, 0)  # type: ignore[literal-required]
         if revision_pass:
             base = f"{base}:rev{revision_pass}"

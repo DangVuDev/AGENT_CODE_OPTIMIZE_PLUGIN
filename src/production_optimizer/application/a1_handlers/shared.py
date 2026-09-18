@@ -79,7 +79,6 @@ _REQUIRED_DRAFT_FIELDS = (
     "unit",
     "workload_id",
     "environment_id",
-    "command_id",
 )
 
 # Language-specific workload defaults (Phase 3): minimize collection time on
@@ -111,7 +110,20 @@ class _ExtractedIntent(BaseModel):
     workload_id: str | None = Field(default=None, max_length=255)
     dataset_id: str | None = Field(default=None, max_length=255)
     environment_id: str | None = Field(default=None, max_length=255)
-    command_id: str | None = Field(default=None, max_length=255)
+    # No `commands` field here on purpose: unlike the old single `command_id`
+    # string, a `dict[kind, str]` of several real shell commands is not
+    # something free-form raw-text LLM extraction can reliably reconstruct
+    # (which kind maps to which fragment of prose, and whether it's even a
+    # real, safe-to-run command are exactly the ambiguities `commands` exists
+    # to avoid) -- it is only ever accepted from `ManualCasePayload.commands`,
+    # the requester's own structured, machine-readable declaration. Also
+    # deliberately absent from `_REQUIRED_DRAFT_FIELDS` below (unlike the old
+    # `command_id`) for the same reason: A1 must not force every raw-text
+    # request into `clarification` just because prose never named an exact
+    # shell command -- A2.31 already has two real fallbacks for a genuinely
+    # undeclared command (`tool_coverage`-based convention detection, then an
+    # LLM proposal gated on human approval), so A1 is not the only chance to
+    # supply one.
     requester_hypothesis: str | None = Field(default=None, max_length=2000)
     confidence: float = Field(default=0.0, ge=0, le=1)
 
@@ -198,7 +210,6 @@ def _draft_from_payload(
         "workload_id",
         "dataset_id",
         "environment_id",
-        "command_id",
         "requester_hypothesis",
     )
     values: dict[str, Any] = {}
@@ -220,9 +231,18 @@ def _draft_from_payload(
         ):
             values[field_name] = value
             provenance[field_name] = "structured_payload:criteria"
-    if payload.execution_profile == "docker_compose" and payload.evaluations:
-        values["command_id"] = payload.evaluations[0].evaluation_id
-        provenance["command_id"] = "structured_payload:evaluation"
+    # `commands` (unlike the scalar fields in the loop below) is never
+    # merged with a raw-text LLM extraction and is only ever taken verbatim
+    # from the requester's own structured declaration -- see
+    # `_ExtractedIntent`'s docstring for why. Also deliberately not set at
+    # all for `docker_compose`: that profile's real shell commands live in
+    # `payload.evaluations[].command`, dispatched by A2.50 as a
+    # `compose_evaluation` job, not as a `RepositoryCommand` A2.31 binds by
+    # `kind` -- there is no `build`/`lint`/`type`/`unit` kind an evaluation
+    # id could correctly map to.
+    if payload.commands:
+        values["commands"] = payload.commands
+        provenance["commands"] = "structured_payload"
     for field_name in fields:
         raw_value = getattr(extracted, field_name, None) if extracted is not None else None
         structured_value = getattr(payload, field_name)
@@ -268,7 +288,7 @@ def _draft_from_payload(
         workload_id=values.get("workload_id"),
         dataset_id=values.get("dataset_id"),
         environment_id=values.get("environment_id"),
-        command_id=values.get("command_id"),
+        commands=values.get("commands"),
         extraction_confidence=confidence,
         unresolved_fields=unresolved,
         requester_hypothesis=values.get("requester_hypothesis"),

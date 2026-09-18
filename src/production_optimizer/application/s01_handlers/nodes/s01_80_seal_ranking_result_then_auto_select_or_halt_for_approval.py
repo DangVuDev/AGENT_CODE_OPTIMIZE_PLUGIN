@@ -81,7 +81,6 @@ def handle_s01_80_seal_ranking_result_then_auto_select_or_halt_for_approval(
         )
         approval = SelectionApproval(decision="pending", policy_version=_POLICY_VERSION)
         return NodeExecution(
-            route=NodeRoute.APPROVAL,
             updates={
                 "artifact_refs": [ranking_ref],
                 "pending_interrupt": interrupt,

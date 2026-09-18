@@ -187,8 +187,20 @@ def _write_file(root: Path, path: str | None, content: str | None, allowed: set[
     target = (root / path).resolve()
     if not target.is_relative_to(root):
         return f"error: {path} escapes the workspace"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        # Mirrors `_read_file`'s own OSError handling: a locked/permission-
+        # denied file (common on Windows -- antivirus, an editor, or a
+        # still-running Docker Compose stack holding a handle into this
+        # exact isolated workspace copy) is a transient environment fault,
+        # not a reason to crash the whole graph. Surfacing it as an
+        # observation lets the model see the failure and decide what to do
+        # next (retry, pick a different path, or give up cleanly) instead of
+        # an unhandled `OSError` propagating out of `NodeRuntime.execute`
+        # and aborting the entire run.
+        return f"error: could not write {path}: {exc}"
     return f"ok: wrote {len(content)} bytes to {path}"
 
 

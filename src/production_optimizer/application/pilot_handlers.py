@@ -339,7 +339,6 @@ def _optimization_request(state: OptimizationState) -> OptimizationRequest:
             workload_id="pilot-workload",
             dataset_id="pilot-dataset",
             environment_id="pilot-env",
-            command_id="benchmark-pilot",
             repetitions=3,
             warmup_runs=1,
             concurrency=1,
