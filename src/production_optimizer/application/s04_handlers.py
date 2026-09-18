@@ -440,6 +440,7 @@ def _s04_90(state: OptimizationState, ports: NodePorts) -> NodeExecution:
             kind="integration",
             exit_code=0,
             passed=True,
+            duration_seconds=0.0,
         )]
 
     stage = f"S04.90-{active_phase_id}-pass{pass_number}"
