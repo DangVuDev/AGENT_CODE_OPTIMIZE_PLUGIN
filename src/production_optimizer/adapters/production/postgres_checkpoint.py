@@ -4,24 +4,56 @@ from __future__ import annotations
 
 from typing import Any, cast
 
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.postgres import PostgresSaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 
 from production_optimizer.contracts import ArtifactRef, EventRef, InterruptEnvelope
+from production_optimizer.contracts.c0 import (
+    DigestChainLink,
+    DimensionEquivalenceVerdict,
+    FreshnessCheck,
+    SchemaValidationResult,
+)
+from production_optimizer.contracts.commands import ResumeInterruptCommand
+from production_optimizer.contracts.platform import ActorContext
+from production_optimizer.contracts.s01 import SelectionApproval, StrategyScore
 
 
 def strict_checkpoint_serializer() -> JsonPlusSerializer:
-    """Serializer allowlisting only checkpoint-safe product contract types."""
+    """Serializer allowlisting checkpoint-safe product contract types.
 
-    allowed_types = (ArtifactRef, EventRef, InterruptEnvelope)
+    This allows LangGraph to serialize/deserialize Pydantic models in checkpoints
+    without needing to pickle them. All types stored in optimization state must
+    be listed here.
+    """
+
+    allowed_types = (
+        ArtifactRef,
+        EventRef,
+        InterruptEnvelope,
+        ActorContext,
+        SchemaValidationResult,
+        DigestChainLink,
+        DimensionEquivalenceVerdict,
+        FreshnessCheck,
+        ResumeInterruptCommand,
+        StrategyScore,
+        SelectionApproval,
+    )
     allowed_modules = tuple((item.__module__, item.__name__) for item in allowed_types)
     return JsonPlusSerializer(
         pickle_fallback=False,
         allowed_json_modules=allowed_modules,
         allowed_msgpack_modules=allowed_types,
     )
+
+
+def create_memory_checkpointer() -> InMemorySaver:
+    """Create an in-memory checkpoint saver with proper serialization for contract types."""
+    return InMemorySaver(serde=strict_checkpoint_serializer())
 
 
 class PostgresCheckpointProvider:

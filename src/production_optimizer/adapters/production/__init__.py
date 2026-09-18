@@ -9,7 +9,7 @@ from .migrations import MigrationError, apply_migrations
 from .model_provider_errors import ModelProviderError, is_retryable, report_model_provider_error
 from .otel_telemetry import OtelTelemetryPort
 from .postgres_case_repository import PostgresCaseRepository
-from .postgres_checkpoint import PostgresCheckpointProvider, strict_checkpoint_serializer
+from .postgres_checkpoint import PostgresCheckpointProvider, create_memory_checkpointer, strict_checkpoint_serializer
 from .postgres_intent_ledger import PostgresIntentLedger
 from .postgres_outbox import PostgresOutboxAdapter
 from .python_policy import DecisionFn, DeterministicPythonPolicy
@@ -35,6 +35,7 @@ __all__ = [
     "WorkerJobFailedError",
     "apply_migrations",
     "build_bootstrap_policy",
+    "create_memory_checkpointer",
     "is_retryable",
     "report_model_provider_error",
     "strict_checkpoint_serializer",
