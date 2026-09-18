@@ -73,10 +73,20 @@ class MemoryArtifactStore:
         del tenant_id
         uri = f"memory://{idempotency_key}"
         self._content_by_uri[uri] = content
+        # `artifact_id` here is a generic, store-internal placeholder --
+        # every real caller (`_put_envelope` in each `*_handlers` module)
+        # discards it and uses `envelope.artifact_id` instead (only `.uri`
+        # from this return value is actually used). `idempotency_key` itself
+        # can exceed `ArtifactRef.artifact_id`'s 100-char limit once it
+        # embeds a already-long, pass-scoped `envelope.artifact_id` a second
+        # time (case_id:node_id:artifact_type:envelope.artifact_id) -- using
+        # a fixed-length digest instead of the raw key avoids that failure
+        # without affecting uniqueness (the full key is still what backs
+        # `uri`, which is what content is actually addressed/read by).
         return ArtifactRef(
             artifact_type="JsonArtifact",
             schema_version="1.0",
-            artifact_id=idempotency_key,
+            artifact_id=sha256_digest(idempotency_key.encode("utf-8")),
             content_digest=content_digest,
             uri=uri,
         )
