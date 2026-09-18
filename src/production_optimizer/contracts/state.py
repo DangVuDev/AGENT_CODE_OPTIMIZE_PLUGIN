@@ -81,24 +81,39 @@ class OptimizationState(TypedDict, total=False):
     error_refs: Annotated[list[ArtifactRef], merge_artifact_refs]
     event_refs: Annotated[list[EventRef], operator.add]
     # A3.81<->A3.82<->A3.60 revision loop bookkeeping (see
-    # `orchestration/subgraphs/a3.py`'s conditional edges). Both use a
-    # summing reducer because each pass through the loop contributes an
-    # independent increment, never a full replacement.
-    a3_revision_attempts: Annotated[int, operator.add]
+    # `orchestration/subgraphs/a3.py`'s conditional edges). `a3_revision_attempts`
+    # is a plain last-value field (not a summing reducer): only one node
+    # (A3.82) writes it per pass, expressing "the new pass number", so
+    # last-write-wins is correct and avoids the subgraph-as-node
+    # double-counting hazard explained on `s03_revision_attempts` below (not
+    # actually reachable for A3 today, since `lanes.py` only invokes the A3
+    # subgraph once and never revisits it from the outside -- A3's own
+    # revision loop is entirely *internal* conditional edges within that one
+    # subgraph invocation -- but this field means "which pass am I on", the
+    # same shape as `s03_revision_attempts`, so it is normalized the same
+    # way rather than left as a reducer by accident). `a3_model_tokens_spent`
+    # stays a real summing reducer: THREE different nodes within one A3 pass
+    # (A3.40/A3.50/A3.60) each independently spend and report their own
+    # token delta, and a real multi-pass revision re-runs all three again --
+    # genuine same-field contributions from multiple writers that must add,
+    # not last-write-wins.
+    a3_revision_attempts: int
     a3_model_tokens_spent: Annotated[int, operator.add]
     # Set by `application.resume.resume_case` right before re-invoking a
     # graph whose run previously ended on `pending_interrupt`. A handler that
     # can halt for approval (e.g. A1.90) reads this to honor an
     # out-of-band decision instead of re-deriving one, and `resume_attempts`
-    # (summing reducer, mirrors `a3_revision_attempts`) makes the resumed
-    # call's idempotency key distinct so `NodeRuntime` re-executes it rather
-    # than replaying the cached pre-resume (halted) result.
+    # (plain last-value field, not a summing reducer -- see
+    # `a3_revision_attempts`'s docstring above) makes the resumed call's
+    # idempotency key distinct so `NodeRuntime` re-executes it rather than
+    # replaying the cached pre-resume (halted) result. `resume_case` computes
+    # the new total itself and assigns it directly.
     # Typed `Any`, not `contracts.commands.ResumeInterruptCommand`, solely to
     # avoid a real import cycle (`commands.py` constructs `OptimizationState`
     # itself); every actual value stored here is still a real
     # `ResumeInterruptCommand` instance -- see `application.resume.resume_case`.
     resume_command: Any | None
-    resume_attempts: Annotated[int, operator.add]
+    resume_attempts: int
     # Which node_id `resume_command`/`resume_attempts` apply to (the
     # `InterruptEnvelope.stage` that halted the run) -- scopes the
     # idempotency-key bump in `NodeRuntime._derive_idempotency_key` to that
@@ -186,9 +201,10 @@ class OptimizationState(TypedDict, total=False):
     s02_critique: Any | None
     s02_approval: Any | None
     # S02.81's deterministic-validation gate may route back to S02.30 for a
-    # bounded redraft -- mirrors A3's `a3_revision_attempts` exactly, a
-    # summing reducer since each pass contributes an independent increment.
-    s02_revision_attempts: Annotated[int, operator.add]
+    # bounded redraft -- mirrors A3's `a3_revision_attempts` exactly, a plain
+    # last-value field (not a summing reducer -- see that field's docstring
+    # above for why).
+    s02_revision_attempts: int
     # S03 (Implement) -- one phase at a time from S02's `ExecutionPlan`, no
     # fan-out, so plain last-value fields again. `s03_active_phase_id`
     # persists across phases (S03.90 advances it); the rest are working
@@ -219,9 +235,8 @@ class OptimizationState(TypedDict, total=False):
     # decision both send the graph back to S03 to really re-implement the
     # same active phase (`docs/project-blueprint/shared-workflow/
     # 09-langgraph-operating-model.md` names both as one "Implementation
-    # repair" loop control) -- a summing reducer, mirrors
-    # `a3_revision_attempts`/`s02_revision_attempts` exactly. Written (+1) by
-    # `s04_handlers._s04_90` on a real failing pass and by `s06_handlers.
+    # repair" loop control). Written (new total, not a reducer contribution)
+    # by `s04_handlers._s04_90` on a real failing pass and by `s06_handlers.
     # _s06_70` on a real FIX_ONE_PART route: every node from S03.10 through
     # S04.90 revisits itself once per pass, and without this counter
     # changing between passes, `NodeRuntime._derive_idempotency_key` would
@@ -237,7 +252,33 @@ class OptimizationState(TypedDict, total=False):
     # -- see `orchestration/shared_workflow.py`'s own module docstring for
     # why a per-class split is a larger, separate future refactor rather
     # than something attempted here.
-    s03_revision_attempts: Annotated[int, operator.add]
+    #
+    # DELIBERATELY a plain last-value field, not `Annotated[int,
+    # operator.add]`: S03/S04/S05/S06 are each added as their own compiled
+    # subgraph NODE in the outer `shared_workflow` graph
+    # (`orchestration/shared_workflow.py`), and the outer graph genuinely
+    # revisits the SAME node (e.g. "S04") a second time on a real revision
+    # pass -- unlike A3/S02, whose own revision loops are internal
+    # conditional edges *inside* one subgraph that only returns to its
+    # parent once. A compiled subgraph used as a node returns its OWN
+    # absolute final channel value for every field in the shared schema to
+    # the parent (confirmed via LangGraph's `pregel/_io.py`
+    # `map_output_values`/`read_channels` -- the subgraph's output is not a
+    # delta). With a summing reducer, the parent's own `apply_writes` would
+    # then add that already-absolute value on top of its own current value
+    # every time "S04" is revisited, silently doubling this counter on the
+    # SECOND pass even though only one real `+1` was ever written anywhere
+    # -- confirmed as a real production incident: `S03.80`/`S04.10` derive a
+    # pass-scoped artifact lookup key from this field
+    # (`f"S03.80-{phase}-pass{s03_revision_attempts}"`), and the inflated
+    # value caused `S04.10` to look up a `pass2` artifact that `S03.80`
+    # (which correctly saw `pass1`) never sealed. Each writer computes the
+    # new total itself (`state.get("s03_revision_attempts", 0) + 1`) and
+    # assigns it directly -- correct because only one node writes it per
+    # pass, so there is no real same-superstep contention for a reducer to
+    # resolve, only the false "contention" this subgraph-as-node return
+    # value shape used to create.
+    s03_revision_attempts: int
     # S05 (Controlled Remeasurement) -- reuses S03's own workspace exactly
     # like S04 does (no new isolation boundary), no fan-out, so plain
     # last-value fields overwritten each time S05 runs for the active phase.

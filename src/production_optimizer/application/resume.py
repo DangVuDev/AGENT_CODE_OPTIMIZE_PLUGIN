@@ -102,30 +102,25 @@ def resume_case(
         # `invoke(None, ...)` then continues execution from exactly the node
         # after the one that halted, same as a fresh `interrupt_after` pause.
         #
-        # Deliberately NOT `{**state, ...}`: `update_state` -> `apply_writes`
-        # runs these overrides through the SAME reducer machinery as a normal
-        # node's returned updates (see `contracts.state`'s `operator.add`
-        # fields -- `a3_revision_attempts`, `a3_model_tokens_spent`,
-        # `s02_revision_attempts`, `s03_revision_attempts`, `resume_attempts`).
-        # A channel not mentioned in the values dict receives no write and is
-        # left at its already-persisted value; spreading `**state` would
-        # instead re-feed each summing field's own current value back into
-        # itself, silently doubling it on every resume with no real second
-        # pass having occurred. Listing only the fields this function
-        # actually intends to change avoids that -- and passing `1` (a
-        # delta), not `state.get("resume_attempts", 0) + 1` (a precomputed
-        # total), for `resume_attempts` lets the reducer alone compute the
-        # correct new total; `node_runtime._derive_idempotency_key` reads it
-        # back from the channel afterward, during the resumed node's own
-        # execution, so it never needs `resume_case` to know the
-        # post-increment value synchronously.
+        # Deliberately NOT `{**state, ...}`: passing every field back through
+        # `update_state` would also re-seal e.g. `RankingResult` from stale
+        # working state at resume time instead of leaving already-completed
+        # nodes' own fields alone. Only the fields this function actually
+        # intends to change are listed. `resume_attempts` is a plain
+        # last-value field (see `contracts.state`'s docstring -- it used to
+        # be an `operator.add` reducer, which combined with a compiled
+        # subgraph node returning its own absolute state to a revisited
+        # parent graph, or with this function once redundantly spreading
+        # `**state`, would double-count it; last-write-wins with the total
+        # computed here avoids both hazards), so `resume_case` computes the
+        # new total itself.
         graph.update_state(
             config,
             {
                 "artifact_refs": artifact_refs,
                 "node_routes": node_routes,
                 "resume_command": command,
-                "resume_attempts": 1,
+                "resume_attempts": (state.get("resume_attempts", 0) or 0) + 1,
                 "resume_target_node": interrupt.stage,
                 "pending_interrupt": None,
             },

@@ -86,7 +86,8 @@ def handle_a3_82_revise_failed_dimensions_preserve_attempts_enforce_retry(
         )
         ref = _put_envelope(ports, state, directive, node_id="A3.82")
         return NodeExecution(
-            route=NodeRoute.REJECTED, updates={"artifact_refs": [ref], "a3_revision_attempts": 1}
+            route=NodeRoute.REJECTED,
+            updates={"artifact_refs": [ref], "a3_revision_attempts": next_attempt},
         )
 
     directive = _seal(
@@ -105,7 +106,8 @@ def handle_a3_82_revise_failed_dimensions_preserve_attempts_enforce_retry(
     )
     ref = _put_envelope(ports, state, directive, node_id="A3.82")
     return NodeExecution(
-        route=NodeRoute.CONTINUE, updates={"artifact_refs": [ref], "a3_revision_attempts": 1}
+        route=NodeRoute.CONTINUE,
+        updates={"artifact_refs": [ref], "a3_revision_attempts": next_attempt},
     )
 
 

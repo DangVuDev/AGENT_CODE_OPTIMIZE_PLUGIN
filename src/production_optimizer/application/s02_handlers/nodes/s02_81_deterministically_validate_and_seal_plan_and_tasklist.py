@@ -184,7 +184,10 @@ def handle_s02_81_deterministically_validate_and_seal_plan_and_tasklist(
     # Conditioning this on the route (as A3's `a3_revision_attempts` does)
     # would give the terminal call the *same* post-update value as the
     # revision call immediately before it, colliding under one route key.
-    updates: dict[str, Any] = {"artifact_refs": refs, "s02_revision_attempts": 1}
+    updates: dict[str, Any] = {
+        "artifact_refs": refs,
+        "s02_revision_attempts": pass_number + 1,
+    }
     return NodeExecution(route=route, updates=updates)
 
 

@@ -249,14 +249,10 @@ def _advance(runtime: NodeRuntime, node_id: str, state: dict[str, Any]) -> dict[
     merged = dict(state)
     merged.update(result)
     merged["artifact_refs"] = [*existing_refs, *new_refs]
-    # `s02_revision_attempts` is an `operator.add`-reduced state field (see
-    # contracts/state.py); a real graph invocation sums it automatically,
-    # but this manual per-node harness must replicate that summation itself
-    # -- mirrors `test_a3_production_handlers.py`'s identical fix for
-    # `a3_revision_attempts`.
-    merged["s02_revision_attempts"] = state.get("s02_revision_attempts", 0) + result.get(
-        "s02_revision_attempts", 0
-    )
+    # `s02_revision_attempts` is a plain last-value field (see
+    # contracts/state.py's docstring -- the writer already computes the new
+    # total itself), so `merged.update(result)` above applies it correctly
+    # with no special-casing needed.
     # `node_routes` is a merge-guarded state field too (`merge_node_routes`,
     # contracts/state.py): a real graph invocation accumulates every node's
     # route across the whole run, but this harness's plain `dict.update`

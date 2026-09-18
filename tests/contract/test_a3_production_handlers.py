@@ -296,9 +296,11 @@ def _advance(runtime: NodeRuntime, node_id: str, state: dict[str, Any]) -> dict[
     existing_refs = cast("list[ArtifactRef]", state.get("artifact_refs", []))
     new_refs = cast("list[ArtifactRef]", result.get("artifact_refs", []))
     merged = {**state, **result, "artifact_refs": [*existing_refs, *new_refs]}
-    merged["a3_revision_attempts"] = state.get("a3_revision_attempts", 0) + result.get(
-        "a3_revision_attempts", 0
-    )
+    # `a3_revision_attempts` is a plain last-value field (the writer already
+    # computes the new total itself) -- `{**state, **result}` above applies
+    # it correctly. `a3_model_tokens_spent` is still a real summing reducer
+    # (multiple nodes independently contribute their own token delta per
+    # pass), so this hand-rolled harness still accumulates it manually.
     merged["a3_model_tokens_spent"] = state.get("a3_model_tokens_spent", 0) + result.get(
         "a3_model_tokens_spent", 0
     )

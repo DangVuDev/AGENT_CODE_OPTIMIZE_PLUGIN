@@ -169,14 +169,11 @@ def _advance(runtime: NodeRuntime, node_id: str, state: dict[str, Any]) -> dict[
     merged.update(result)
     merged["artifact_refs"] = [*existing_refs, *new_refs]
     merged["node_routes"] = {**state.get("node_routes", {}), **result.get("node_routes", {})}
-    # `s03_revision_attempts` is a real summing (`operator.add`) reducer in
-    # `contracts/state.py` -- LangGraph itself sums contributions across
-    # supersteps, but this hand-rolled test harness otherwise does a plain
-    # `dict.update`, which would silently overwrite instead of accumulate.
-    if "s03_revision_attempts" in result:
-        merged["s03_revision_attempts"] = (
-            state.get("s03_revision_attempts", 0) + result["s03_revision_attempts"]
-        )
+    # `s03_revision_attempts` is a plain last-value field in
+    # `contracts/state.py` (not a summing reducer -- see that field's own
+    # docstring for why): the writer already computes the new total itself,
+    # so a plain `dict.update` (via `merged.update(result)` above) applies
+    # it correctly with no special-casing needed here.
     return merged
 
 

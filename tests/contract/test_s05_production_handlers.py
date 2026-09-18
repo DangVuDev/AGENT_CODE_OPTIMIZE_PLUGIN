@@ -170,10 +170,6 @@ def _advance(runtime: NodeRuntime, node_id: str, state: dict[str, Any]) -> dict[
     merged.update(result)
     merged["artifact_refs"] = [*existing_refs, *new_refs]
     merged["node_routes"] = {**state.get("node_routes", {}), **result.get("node_routes", {})}
-    if "s03_revision_attempts" in result:
-        merged["s03_revision_attempts"] = (
-            state.get("s03_revision_attempts", 0) + result["s03_revision_attempts"]
-        )
     return merged
 
 

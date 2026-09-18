@@ -862,7 +862,7 @@ def _s06_80(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     }
 
     if outcome == "FIX_ONE_PART":
-        updates["s03_revision_attempts"] = 1
+        updates["s03_revision_attempts"] = (state.get("s03_revision_attempts", 0) or 0) + 1
     elif outcome == "REVERT":
         # `SelectedSolution` is pass-scoped in `s01_handlers` (BR-01-005) --
         # this REVERT is deciding on the selection that led to *this*

@@ -471,7 +471,7 @@ def _s04_90(state: OptimizationState, ports: NodePorts) -> NodeExecution:
         # `s05_handlers._s05_40` is the new, real last consumer and owns the
         # cleanup once remeasurement is done with it.
     else:
-        updates["s03_revision_attempts"] = 1
+        updates["s03_revision_attempts"] = pass_number + 1
 
     return NodeExecution(updates=updates)
 
