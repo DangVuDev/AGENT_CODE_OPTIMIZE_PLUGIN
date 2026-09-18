@@ -90,15 +90,6 @@ def resume_case(
     node_routes = dict(state.get("node_routes", {}))
     node_routes.pop(interrupt.stage, None)
 
-    resumed_state: OptimizationState = {
-        **state,
-        "artifact_refs": artifact_refs,
-        "node_routes": node_routes,
-        "resume_command": command,
-        "resume_attempts": state.get("resume_attempts", 0) + 1,
-        "resume_target_node": interrupt.stage,
-        "pending_interrupt": None,
-    }
     if config is not None:
         # A checkpointed graph (see `build_shared_workflow_graph`'s own
         # `interrupt_after`) must resume from where it actually paused, not
@@ -110,6 +101,44 @@ def resume_case(
         # merges these overrides into the persisted checkpoint in place;
         # `invoke(None, ...)` then continues execution from exactly the node
         # after the one that halted, same as a fresh `interrupt_after` pause.
-        graph.update_state(config, resumed_state)
+        #
+        # Deliberately NOT `{**state, ...}`: `update_state` -> `apply_writes`
+        # runs these overrides through the SAME reducer machinery as a normal
+        # node's returned updates (see `contracts.state`'s `operator.add`
+        # fields -- `a3_revision_attempts`, `a3_model_tokens_spent`,
+        # `s02_revision_attempts`, `s03_revision_attempts`, `resume_attempts`).
+        # A channel not mentioned in the values dict receives no write and is
+        # left at its already-persisted value; spreading `**state` would
+        # instead re-feed each summing field's own current value back into
+        # itself, silently doubling it on every resume with no real second
+        # pass having occurred. Listing only the fields this function
+        # actually intends to change avoids that -- and passing `1` (a
+        # delta), not `state.get("resume_attempts", 0) + 1` (a precomputed
+        # total), for `resume_attempts` lets the reducer alone compute the
+        # correct new total; `node_runtime._derive_idempotency_key` reads it
+        # back from the channel afterward, during the resumed node's own
+        # execution, so it never needs `resume_case` to know the
+        # post-increment value synchronously.
+        graph.update_state(
+            config,
+            {
+                "artifact_refs": artifact_refs,
+                "node_routes": node_routes,
+                "resume_command": command,
+                "resume_attempts": 1,
+                "resume_target_node": interrupt.stage,
+                "pending_interrupt": None,
+            },
+        )
         return graph.invoke(None, config=config)
+
+    resumed_state: OptimizationState = {
+        **state,
+        "artifact_refs": artifact_refs,
+        "node_routes": node_routes,
+        "resume_command": command,
+        "resume_attempts": state.get("resume_attempts", 0) + 1,
+        "resume_target_node": interrupt.stage,
+        "pending_interrupt": None,
+    }
     return graph.invoke(resumed_state)

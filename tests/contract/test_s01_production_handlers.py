@@ -396,7 +396,12 @@ def test_s01_halts_for_approval_on_a_code_risk_winner_and_is_resumable() -> None
         state = _advance(runtime, node_id, state)
     state = _advance(runtime, "S01.80", state)
 
-    assert state["node_routes"]["S01.80"] == "approval"
+    # S01.80 always routes "continue" (the graph edge to S01.90 is taken
+    # regardless) -- a real halt is represented by `pending_interrupt`, not
+    # by the route, so S01.90 can run after a real resume and seal
+    # `SelectedSolution` instead of being bypassed. See `s01_handlers`'s
+    # S01.80/S01.90 node docstrings.
+    assert state["node_routes"]["S01.80"] == "continue"
     interrupt = state["pending_interrupt"]
     assert interrupt is not None
     assert interrupt.stage == "S01.80"
