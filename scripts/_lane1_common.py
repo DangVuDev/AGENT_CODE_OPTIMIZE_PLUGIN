@@ -73,10 +73,11 @@ class MemoryArtifactStore:
         del tenant_id
         uri = f"memory://{idempotency_key}"
         self._content_by_uri[uri] = content
+        artifact_id = idempotency_key[:100] if len(idempotency_key) > 100 else idempotency_key
         return ArtifactRef(
             artifact_type="JsonArtifact",
             schema_version="1.0",
-            artifact_id=idempotency_key,
+            artifact_id=artifact_id,
             content_digest=content_digest,
             uri=uri,
         )
