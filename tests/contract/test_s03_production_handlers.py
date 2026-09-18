@@ -167,8 +167,10 @@ class _DenyPolicy:
         return True
 
 
-_PATH_LINE = re.compile(r"Authorized write paths: \[(.*?)\]")
-_TREATMENT_LINE = re.compile(r"Treatment: \S+ from '(.*?)' to '(.*?)'")
+_PATH_LINE = re.compile(r"Authorized write paths \([^)]*\): \[(.*?)\]")
+_TREATMENT_LINE = re.compile(
+    r"The one logical change to make: set \S+ from '(.*?)' to '(.*?)'"
+)
 
 
 class _ScriptedAgentProvider:

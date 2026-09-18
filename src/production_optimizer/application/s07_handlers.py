@@ -74,7 +74,7 @@ _PRODUCER = ProducerIdentity(name="s07-production-handler", version="1.0.0")
 _ZERO_DIGEST = f"sha256:{'0' * 64}"
 _POLICY_VERSION = "s07-report-v1"
 _DEFAULT_S07_MODEL_ID = "claude-sonnet-5"
-_S07_PROMPT_VERSION = "s07-narrative-v1"
+_S07_PROMPT_VERSION = "s07-narrative-v2"
 _NARRATIVE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {"narrative": {"type": "string"}},
@@ -415,20 +415,78 @@ def _s07_60(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     return NodeExecution(updates={"s07_cost": cost.model_dump(mode="json")})
 
 
+def _build_narrative_facts(state: OptimizationState) -> str:
+    """The structured facts S07.70's narrative may draw on -- and the only
+    ones it may state (BR-07-002: report numbers resolve to raw evidence).
+
+    Deliberately spells out every measured criterion with its real baseline/
+    treatment numbers and met/not-met verdict rather than a bare count: a
+    narrative cannot honestly report what was measured, or keep unmet
+    criteria visible as BR-07-001 requires, from a summary that has already
+    discarded the numbers.
+    """
+
+    outcomes = cast("list[dict[str, Any]]", state.get("s07_outcomes") or [])
+    evidence = cast("list[dict[str, Any]]", state.get("s07_evidence") or [])
+    cost = cast("dict[str, Any]", state.get("s07_cost") or {})
+    source_change = cast("dict[str, Any]", state.get("s07_source_change") or {})
+
+    lines = ["Decision: KEEP."]
+
+    if source_change:
+        lines.append("")
+        lines.append("Source change:")
+        lines.append(f"- phase: {source_change.get('phase_id')}")
+        lines.append(f"- base revision: {source_change.get('base_revision')}")
+        lines.append(f"- changed files: {source_change.get('changed_files')}")
+        applied = source_change.get("applied_to_repository")
+        lines.append(
+            f"- applied to the real repository: {applied}"
+            + (
+                f" (reason: {source_change.get('applied_failure_reason')})"
+                if not applied and source_change.get("applied_failure_reason")
+                else ""
+            )
+        )
+
+    lines.append("")
+    if evidence:
+        lines.append(f"Measured evidence ({len(evidence)} criteria):")
+        for item in evidence:
+            lines.append(
+                f"- {item.get('criterion_id')} (metric {item.get('metric_id')}): "
+                f"baseline={item.get('baseline_mean')} treatment={item.get('treatment_mean')} "
+                f"absolute_change={item.get('absolute_change')} "
+                f"relative_change={item.get('relative_change')} "
+                f"comparable={item.get('comparable')} met={item.get('met')}"
+            )
+    else:
+        lines.append("Measured evidence: none available for this case.")
+
+    if outcomes:
+        lines.append("")
+        lines.append("Outcome ledger:")
+        lines.extend(
+            f"- {item.get('subject')}: {item.get('category')} ({item.get('detail')})"
+            for item in outcomes
+        )
+
+    lines.append("")
+    lines.append(
+        f"Cost: {cost.get('model_input_tokens', 0)} input tokens, "
+        f"{cost.get('model_output_tokens', 0)} output tokens, "
+        f"{cost.get('phase_repair_attempts', 0)} phase repair attempt(s)."
+    )
+    return "\n".join(lines)
+
+
 def _s07_70(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     """Real LLM narrative when a model is wired (generator role, mirrors
     A3.40/S02.30); an equally real, deterministic template otherwise --
     BR-07-005 holds either way since nothing here feeds back into the
     already-sealed `s06_decision`."""
 
-    outcomes = cast("list[dict[str, Any]]", state.get("s07_outcomes") or [])
-    evidence = cast("list[dict[str, Any]]", state.get("s07_evidence") or [])
-    cost = cast("dict[str, Any]", state.get("s07_cost") or {})
-    facts = (
-        f"Outcome: KEEP. {len(evidence)} criteria measured. "
-        f"Repair attempts: {cost.get('phase_repair_attempts', 0)}. "
-        + "; ".join(f"{o['subject']}: {o['category']} ({o['detail']})" for o in outcomes)
-    )
+    facts = _build_narrative_facts(state)
 
     if ports.model is None:
         narrative = f"Case kept. {facts}"
@@ -442,8 +500,26 @@ def _s07_70(state: OptimizationState, ports: NodePorts) -> NodeExecution:
             ModelMessage(
                 role="system",
                 content=(
-                    "You write a short, factual engineering summary from the structured "
-                    "facts given. Never invent numbers or outcomes not present in the facts. "
+                    "You write the engineering summary of a completed code-optimization "
+                    "case, using ONLY the structured facts supplied below.\n"
+                    "\n"
+                    "Rules this report is audited against:\n"
+                    "- Never invent a number, file, metric, outcome or cause that is not "
+                    "in the facts. Every number you state must appear verbatim in them "
+                    "(BR-07-002).\n"
+                    "- Failed, reverted, simplified and unfinished work stays visible. Do "
+                    "not omit a criterion that was not met, and do not soften it -- state "
+                    "plainly which criteria were met and which were not (BR-07-001).\n"
+                    "- If the facts mark the measurement as not comparable, say so; a "
+                    "measured improvement that is not comparable is not evidence of an "
+                    "improvement.\n"
+                    "- Do not recommend, decide or speculate about next steps. The "
+                    "decision was already made and this summary never changes it "
+                    "(BR-07-005).\n"
+                    "\n"
+                    "Write 3-6 sentences for an engineer who did not follow the case: what "
+                    "was changed, what the measurements showed (with the real numbers), "
+                    "which criteria were and were not met, and what it cost.\n"
                     'Respond with JSON: {"narrative": "..."}.'
                 ),
             ),
@@ -451,7 +527,9 @@ def _s07_70(state: OptimizationState, ports: NodePorts) -> NodeExecution:
         ],
         response_schema=_NARRATIVE_SCHEMA,
         max_output_tokens=400,
-        idempotency_key=f"{_required_state_str(state, 'case_id')}:S07.70",
+        idempotency_key=(
+            f"{_required_state_str(state, 'case_id')}:S07.70:{_S07_PROMPT_VERSION}"
+        ),
     )
     result = ports.model.complete(request)
     narrative = (

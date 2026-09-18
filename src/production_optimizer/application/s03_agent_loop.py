@@ -50,7 +50,7 @@ _TOOL_LOOP_SCHEMA = {
 _MAX_STEPS = 8
 _MAX_OUTPUT_TOKENS = 4000
 _MAX_OBSERVATION_CHARS = 8000
-_PROMPT_VERSION = "s03-agent-loop-v1"
+_PROMPT_VERSION = "s03-agent-loop-v2"
 
 
 @dataclass
@@ -88,7 +88,11 @@ def run_agent_loop(
             messages=messages,
             response_schema=_TOOL_LOOP_SCHEMA,
             max_output_tokens=_MAX_OUTPUT_TOKENS,
-            idempotency_key=f"{idempotency_prefix}:step{step}",
+            # The prompt version belongs in the key (mirrors A2.31/A3.40/
+            # S02.30's own keys): the operating model requires versioned
+            # prompts, and a key without it would replay a cached step from
+            # a materially different prompt after any prompt change.
+            idempotency_key=f"{idempotency_prefix}:{_PROMPT_VERSION}:step{step}",
         )
         completion = model.complete(request)
         result.input_tokens += completion.input_tokens

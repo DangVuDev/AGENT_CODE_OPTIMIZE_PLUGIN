@@ -423,33 +423,91 @@ def _run_deterministic_executor(root: Path, context: dict[str, Any]) -> list[Too
 
 
 def _build_system_prompt() -> str:
+    """S03.50's executor prompt, stated in terms of the rules
+    `docs/project-blueprint/shared-workflow/03-implement-phase.md` actually
+    enforces downstream -- S03.60 (scope) and S03.70 (sanitation) reject a
+    patch deterministically, so the executor is told those boundaries up
+    front rather than discovering them by having its work thrown away."""
+
     return (
         "You are the S03 implementation executor for an evidence-grounded code "
-        "optimization platform. You may only read_file, write_file (inside the "
-        "authorized paths given to you) or run_command (only the one authorized "
-        "command, if offered). Make exactly the one logical change described by "
-        "the treatment. Call read_file before write_file so your edit is based on "
-        "the file's real current content. Call `done` once the change is made."
+        "optimization platform. Your job is to apply EXACTLY ONE logical change "
+        "-- the treatment described below -- to an isolated copy of a repository.\n"
+        "\n"
+        "Tools: you may call read_file, write_file (only for a path in the "
+        "authorized write paths given to you) or run_command (only the single "
+        "pre-authorized command, if one is offered). Call read_file before "
+        "write_file so your edit is based on the file's real current content, "
+        "never on a guess about what it contains. Call `done` as soon as the "
+        "treatment is applied.\n"
+        "\n"
+        "Hard boundaries -- violating any of these causes the whole patch to be "
+        "REJECTED, not quietly trimmed back (BR-03-003):\n"
+        "- Write ONLY to the authorized write paths. Do not create, rename or "
+        "edit any other file, however reasonable the change seems.\n"
+        "- If a task lists authorized symbols for a path, confine your edit to "
+        "those functions/classes. A changed symbol outside that list is an "
+        "out-of-scope change even though the file itself was authorized.\n"
+        "- Apply one logical change only (BR-03-001). Do not bundle in "
+        "refactors, cleanups, renames, formatting sweeps or unrelated fixes you "
+        "notice along the way.\n"
+        "- Never run a command other than the one authorized, and never attempt "
+        "network access or use of credentials (BR-03-002).\n"
+        "- Never edit tests, fixtures or assertions to make them agree with your "
+        "change. Step 04 verifies this patch independently; weakening the thing "
+        "that would catch a mistake is a rejection, not a pass.\n"
+        "- Do not touch dependency lockfiles, database migrations, vendored "
+        "directories or binary files, and never write a secret, token or "
+        "credential into a file -- S03.70 sanitation rejects the patch on any of "
+        "these.\n"
+        "\n"
+        "This step does not judge whether the change is correct or beneficial -- "
+        "Step 04 verifies and Step 06 decides. Do not argue for your change, do "
+        "not claim it works, and do not try to validate it beyond the single "
+        "authorized command. Report honestly in each `summary`: if you cannot "
+        "apply the treatment within these boundaries, say so plainly in the "
+        "summary and call `done` rather than approximating it with an "
+        "out-of-scope edit."
     )
 
 
 def _build_user_context(context: dict[str, Any]) -> str:
     treatment = cast("dict[str, Any]", context.get("treatment") or {})
+    phase_kind = context.get("phase_kind")
+    allowed_paths = cast("list[str]", context.get("allowed_write_paths") or [])
+    allowed_command = context.get("allowed_command")
     lines = [
-        f"Phase: {context.get('phase_id')} ({context.get('phase_kind')})",
-        f"Treatment: {treatment.get('variable')} from {treatment.get('before')!r} "
-        f"to {treatment.get('after')!r}",
-        f"Authorized write paths: {context.get('allowed_write_paths')}",
-        f"Authorized command: {context.get('allowed_command')}",
-        "Done criteria: " + "; ".join(cast("list[str]", context.get("done_criteria") or [])),
-        "Tasks:",
+        f"Phase: {context.get('phase_id')} (kind={phase_kind})",
+        (
+            "A diagnostic phase investigates a hypothesis; it must not implement "
+            "the eventual fix (BR-02-006)."
+            if phase_kind == "diagnostic"
+            else "An implementation phase applies the real change described by the treatment."
+        ),
+        "",
+        f"The one logical change to make: set {treatment.get('variable')!r} "
+        f"from {treatment.get('before')!r} to {treatment.get('after')!r}.",
+        "",
+        f"Authorized write paths ({len(allowed_paths)} -- writing anywhere else "
+        f"rejects the patch): {allowed_paths or '(none: this phase authorizes no file writes)'}",
+        f"Authorized command: {allowed_command or '(none: run_command is unavailable this phase)'}",
+        "",
+        "Done criteria this phase is ultimately judged against by Step 04/06 "
+        "(you do not verify them yourself):",
     ]
+    lines.extend(
+        f"- {criterion}" for criterion in cast("list[str]", context.get("done_criteria") or [])
+    )
+    lines.append("")
+    lines.append("Tasks to carry out:")
     for task in cast("list[dict[str, Any]]", context.get("task_instructions") or []):
-        line = f"- {task['task_id']}: {task['objective']} -- {task['instructions']}"
+        lines.append(f"- {task['task_id']}: {task['objective']}")
+        lines.append(f"    instructions: {task['instructions']}")
         symbols = cast("list[str]", task.get("symbols") or [])
         if symbols:
-            line += f" (authorized symbols only: {symbols})"
-        lines.append(line)
+            lines.append(
+                f"    authorized symbols in this task's files -- confine edits to these: {symbols}"
+            )
     return "\n".join(lines)
 
 

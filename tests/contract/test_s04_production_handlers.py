@@ -682,3 +682,44 @@ def test_s04_revision_route_really_reexecutes_s03_on_a_second_pass(tmp_path: Pat
     import shutil
 
     shutil.rmtree(second_workspace_path.parent, ignore_errors=True)
+
+
+def test_s04_90_reports_honestly_when_no_check_was_resolved(tmp_path: Path) -> None:
+    """`VerificationReport.check_results` is `min_length=1`, but a repository
+    that declares no build/lint/type/unit command legitimately leaves S04
+    with nothing to run. The synthetic entry that satisfies the schema must
+    state that honestly -- failed, with a reason -- and never claim a pass:
+    `VerificationReport.passed` is already False in that situation (no
+    mandatory check ran), so a `passed=True` filler would make the sealed
+    artifact contradict its own verdict, which is exactly the kind of
+    fabricated evidence this codebase's "honest unavailable" rule forbids."""
+
+    repo = _seed_repo(tmp_path, initial_expr="2 + 2")
+    store = _MemoryArtifactStore()
+    refs = _seed_case(
+        store, repo=repo, before="2 + 2", after="1 + 1", baseline_unit_failing=False,
+    )
+    state = _run_s03(store, _state(refs))
+    runtime = build_s04_runtime(ports=_ports(store))
+    for node_id in S04_NODE_IDS[:-1]:
+        state = _advance(runtime, node_id, state)
+
+    # A repository where S04.20 resolved no runnable check at all.
+    state["s04_check_results"] = []
+    state["s04_failure_attributions"] = []
+    state = _advance(runtime, "S04.90", state)
+
+    report = _model_from_ref(
+        store, _ref_by_type(state, "VerificationReport"), VerificationReport
+    )
+    assert report.passed is False
+    assert len(report.check_results) == 1
+    placeholder = report.check_results[0]
+    assert placeholder.passed is False
+    assert placeholder.exit_code != 0
+    assert "could not be verified" in placeholder.output_tail
+
+    workspace_path = Path(cast("dict[str, Any]", state["s03_workspace"])["path"])
+    import shutil
+
+    shutil.rmtree(workspace_path.parent, ignore_errors=True)

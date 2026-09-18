@@ -59,7 +59,7 @@ from production_optimizer.contracts.state import OptimizationState
 _PRODUCER = ProducerIdentity(name="s02-production-handler", version="1.0.0")
 _ZERO_DIGEST = f"sha256:{'0' * 64}"
 _POLICY_VERSION = "s02-plan-v1"
-_PROMPT_VERSION = "s02-plan-v1"
+_PROMPT_VERSION = "s02-plan-v2"
 _DEFAULT_S02_MODEL_ID = "claude-sonnet-5"
 _MAX_S02_REVISIONS = 2
 _APPROVAL_RISK_TIERS = {"code", "architecture"}
@@ -509,6 +509,29 @@ def _build_plan_context(
         "set affected_criteria to the criterion ids the phase validates, and set "
         "validation_command_ids to repository-owned validation command ids above. "
         "Order phase sequence by risk ladder: experiment_config < prompt < code < architecture."
+    )
+    # The deterministic gates (S02.40/50/60/70/81) reject a draft against
+    # these rules, so state them where the model can act on them rather than
+    # letting it discover them through a rejected redraft.
+    lines.append(
+        "\nRules this draft is validated against -- a draft breaking any of them "
+        "is rejected and redrafted:\n"
+        "- Each phase changes exactly ONE logical independent variable "
+        "(BR-02-001). It may touch several files, but not two unrelated "
+        "variables. Split them into separate, sequenced phases instead.\n"
+        "- A diagnostic phase tests a hypothesis and must not implement the "
+        "eventual fix (BR-02-006). Put the real change in its own "
+        "implementation phase, sequenced after it.\n"
+        "- Every phase must define its build/test commands, done conditions and "
+        "rollback (BR-02-003). Give every phase a real rollback_trigger and "
+        "rollback_deadline_seconds, and give every IMPLEMENTATION phase a "
+        "concrete rollback_command as well.\n"
+        "- Tasks must form an acyclic dependency graph (BR-02-004): a task's "
+        "depends_on may only name tasks that run before it, and never forms a "
+        "cycle.\n"
+        "- Every task needs a real objective, instructions, owner and the files "
+        "it touches. Do not invent a file or command: use only the paths listed "
+        "above and the validation commands listed above (BR-02-002)."
     )
     return "\n".join(lines)
 

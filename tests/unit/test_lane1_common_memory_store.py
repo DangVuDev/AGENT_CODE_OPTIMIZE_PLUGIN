@@ -15,18 +15,29 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
+
+from production_optimizer.contracts.artifacts import ArtifactRef
 
 _SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from _lane1_common import MemoryArtifactStore  # noqa: E402
+# `scripts/` is a directory of standalone entrypoints rather than an
+# importable package (it is put on `sys.path` above), so pyright cannot
+# resolve its types. The values this test actually asserts on are annotated
+# (`ArtifactRef`) at each call site instead.
+from _lane1_common import MemoryArtifactStore  # type: ignore[import-not-found] # noqa: E402
 
 _CONTENT_DIGEST = "sha256:" + "a" * 64
 
 
+def _store() -> Any:
+    return MemoryArtifactStore()  # pyright: ignore[reportUnknownVariableType]
+
+
 def test_put_json_accepts_an_idempotency_key_longer_than_the_artifact_id_limit() -> None:
-    store = MemoryArtifactStore()
+    store = _store()
     # The exact shape `s03_handlers._put_envelope` produces for a
     # pass-scoped S03.80 artifact -- 104 characters, over the limit.
     idempotency_key = (
@@ -35,7 +46,7 @@ def test_put_json_accepts_an_idempotency_key_longer_than_the_artifact_id_limit()
     )
     assert len(idempotency_key) > 100
 
-    ref = store.put_json(
+    ref: ArtifactRef = store.put_json(
         tenant_id="TENANT-A",
         content=b"{}",
         content_digest=_CONTENT_DIGEST,
@@ -50,14 +61,14 @@ def test_put_json_accepts_an_idempotency_key_longer_than_the_artifact_id_limit()
 
 
 def test_put_json_keeps_distinct_keys_distinct() -> None:
-    store = MemoryArtifactStore()
-    first = store.put_json(
+    store = _store()
+    first: ArtifactRef = store.put_json(
         tenant_id="TENANT-A",
         content=b'{"a":1}',
         content_digest=_CONTENT_DIGEST,
         idempotency_key="OPT-1:S03.80:ExecutionProvenance:" + "x" * 90,
     )
-    second = store.put_json(
+    second: ArtifactRef = store.put_json(
         tenant_id="TENANT-A",
         content=b'{"a":2}',
         content_digest=_CONTENT_DIGEST,

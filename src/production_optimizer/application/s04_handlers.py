@@ -434,14 +434,27 @@ def _s04_90(state: OptimizationState, ports: NodePorts) -> NodeExecution:
     passed = bool(mandatory_ran) and all(result.passed for result in results)
 
     if not results:
-        from production_optimizer.contracts.s04 import CheckResult
-        results = [CheckResult(
-            command_id="no-checks-ran",
-            kind="integration",
-            exit_code=0,
-            passed=True,
-            duration_seconds=0.0,
-        )]
+        # `VerificationReport.check_results` is `min_length=1`, but a phase
+        # can legitimately reach S04.90 with nothing to report: S04.20 only
+        # resolves checks A2.30/31 actually discovered, so a repository that
+        # declares none leaves this empty. Record that honestly -- a failed,
+        # zero-duration check whose output says why -- rather than a
+        # fabricated passing one: `passed` above is already False here (no
+        # mandatory check ran), and a synthetic `passed=True` entry would
+        # make the sealed artifact contradict its own verdict.
+        results = [
+            CheckResult(
+                command_id="no-checks-resolved",
+                kind="integration",
+                exit_code=1,
+                passed=False,
+                duration_seconds=0.0,
+                output_tail=(
+                    "no build/lint/type/unit check was resolved for this repository, "
+                    "so this phase could not be verified"
+                ),
+            )
+        ]
 
     stage = f"S04.90-{active_phase_id}-pass{pass_number}"
     report = _seal(
