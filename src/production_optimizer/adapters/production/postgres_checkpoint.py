@@ -20,6 +20,7 @@ from production_optimizer.contracts.c0 import (
 from production_optimizer.contracts.commands import ResumeInterruptCommand
 from production_optimizer.contracts.platform import ActorContext
 from production_optimizer.contracts.s01 import SelectionApproval, StrategyScore
+from production_optimizer.contracts.s02 import ExecutionPhase, PlanApproval, PlanTask
 
 
 def strict_checkpoint_serializer() -> JsonPlusSerializer:
@@ -42,6 +43,9 @@ def strict_checkpoint_serializer() -> JsonPlusSerializer:
         ResumeInterruptCommand,
         StrategyScore,
         SelectionApproval,
+        ExecutionPhase,
+        PlanTask,
+        PlanApproval,
     )
     allowed_modules = tuple((item.__module__, item.__name__) for item in allowed_types)
     return JsonPlusSerializer(
