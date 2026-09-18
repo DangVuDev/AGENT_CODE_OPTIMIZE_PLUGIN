@@ -42,7 +42,6 @@ from langgraph.graph import END, START, StateGraph
 
 from production_optimizer.adapters.production import create_memory_checkpointer
 from production_optimizer.application.resume import resume_case
-from production_optimizer.contracts.artifacts import ArtifactRef
 from production_optimizer.contracts.commands import ResumeInterruptCommand
 from production_optimizer.contracts.interrupts import InterruptEnvelope
 from production_optimizer.contracts.platform import ActorContext

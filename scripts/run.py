@@ -61,7 +61,10 @@ from _lane1_common import (
     select_model_provider,
 )
 
-from production_optimizer.adapters.production import create_memory_checkpointer, report_model_provider_error
+from production_optimizer.adapters.production import (
+    create_memory_checkpointer,
+    report_model_provider_error,
+)
 from production_optimizer.adapters.production.local_worker_broker import LocalWorkerBroker
 from production_optimizer.application import (
     NodePorts,

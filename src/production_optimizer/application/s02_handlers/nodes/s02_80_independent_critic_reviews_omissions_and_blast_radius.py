@@ -55,7 +55,16 @@ def handle_s02_80_independent_critic_reviews_omissions_and_blast_radius(
         "criterion, dependency, or rollback issue present in the supplied "
         "plan. Do not speculate about database, concurrency, caching, or "
         "architecture risk unless the plan text or file paths directly show "
-        "that risk. Set approved=false only for grounded blocking issues."
+        "that risk. Set approved=false only for grounded blocking issues. "
+        "Apply this platform's own rollback rule exactly, and do not invent "
+        "a stricter one: ONLY a phase with kind=implementation is required "
+        "to carry a rollback command. A phase with kind=diagnostic is "
+        "read-only/reversible investigation by definition and is PERMITTED "
+        "to have rollback=None -- never raise that as an omission or "
+        "concern, even when the diagnostic phase touches a file. A separate "
+        "deterministic check already enforces the implementation-phase rule, "
+        "so flagging a missing rollback on a diagnostic phase is a false "
+        "positive that blocks a valid plan."
     )
     request = ModelCompletionRequest(
         role=ModelRole.JUDGE,

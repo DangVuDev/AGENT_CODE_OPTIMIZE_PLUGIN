@@ -613,6 +613,40 @@ def _criterion_coverage(
     return coverage
 
 
+def _contradicts_diagnostic_rollback_rule(
+    message: str, *, diagnostic_phase_ids: set[str]
+) -> bool:
+    """True when a critique item demands a rollback for a *diagnostic* phase.
+
+    S02.70 is this platform's only rollback rule, and it requires a
+    `rollback_command` for `phase_kind == "implementation"` ONLY -- a
+    diagnostic phase is read-only/reversible investigation by definition and
+    is explicitly permitted to carry `rollback_command=None`. A critic that
+    blocks a plan for "phase-X has rollback=None" where phase-X is
+    diagnostic is therefore not reporting a real omission; it is inventing a
+    stricter rule than the one the system enforces, which reliably rejects
+    otherwise-valid plans. S02.80's prompt already states the real rule, but
+    a model can ignore a prompt, so this check enforces it deterministically.
+
+    Deliberately narrow: it matches only when the message names a real
+    diagnostic phase_id AND talks about a missing/absent rollback. Any other
+    rollback concern (including one about a real implementation phase) is
+    left untouched.
+    """
+
+    lower = message.lower()
+    if not any(phase_id in lower for phase_id in diagnostic_phase_ids):
+        return False
+    if "rollback" not in lower:
+        return False
+    return any(
+        marker in lower
+        for marker in ("rollback=none", "rollback = none", "no rollback", "without rollback",
+                       "missing rollback", "rollback is none", "lacks rollback",
+                       "rollback command is not", "has no rollback", "null rollback")
+    )
+
+
 def _grounded_critique(
     parsed: dict[str, Any],
     *,
@@ -636,12 +670,21 @@ def _grounded_critique(
     anchors.update({"criteria", "criterion", "done_criteria", "rollback", "dependency"})
     anchors.update(reason.lower() for reason in rollback_reasons)
 
+    diagnostic_phase_ids = {
+        phase.phase_id.lower() for phase in phases if phase.phase_kind == "diagnostic"
+    }
+
     def grounded(message: str) -> bool:
         lower = message.lower()
         return any(anchor and anchor in lower for anchor in anchors)
 
-    grounded_omissions = [message for message in omissions if grounded(message)]
-    grounded_concerns = [message for message in concerns if grounded(message)]
+    def actionable(message: str) -> bool:
+        return grounded(message) and not _contradicts_diagnostic_rollback_rule(
+            message, diagnostic_phase_ids=diagnostic_phase_ids
+        )
+
+    grounded_omissions = [message for message in omissions if actionable(message)]
+    grounded_concerns = [message for message in concerns if actionable(message)]
     ignored = [
         message
         for message in [*omissions, *concerns]
@@ -649,10 +692,29 @@ def _grounded_critique(
     ]
     # `approved` is the model's own explicit verdict (`_CRITIQUE_SCHEMA` marks
     # it required, so a schema-valid parse always yields a real True/False,
-    # never an ambiguous "unset" state) -- it must never be overridden here.
-    # Grounding only decides which omissions/concerns are *displayed* as
-    # actionable; an explicit rejection stays a rejection even when none of
-    # its concerns happen to match this function's anchor-keyword vocabulary.
+    # never an ambiguous "unset" state) and is NOT overridden merely because
+    # its concerns fail the anchor-keyword grounding check -- an explicit
+    # rejection stays a rejection even when this codebase cannot verify the
+    # model's phrasing (see `test_s02_critic_explicit_rejection_*`).
+    #
+    # The one exception, deliberately narrow: every single reason the critic
+    # gave is a demand for a rollback on a *diagnostic* phase, which
+    # contradicts S02.70 -- this platform's only rollback rule -- rather than
+    # reporting a real gap. Rejecting on a rule the system does not have is a
+    # false positive, not a verdict worth honoring, and it otherwise blocks
+    # valid plans at random depending on whether the model followed its
+    # prompt. If the critic raised ANY other reason alongside it, its
+    # rejection stands untouched.
+    if not approved and (omissions or concerns):
+        every_reason_is_a_false_positive = all(
+            _contradicts_diagnostic_rollback_rule(
+                message, diagnostic_phase_ids=diagnostic_phase_ids
+            )
+            for message in [*omissions, *concerns]
+        )
+        if every_reason_is_a_false_positive:
+            approved = True
+
     return {
         "omissions": grounded_omissions,
         "concerns": grounded_concerns,

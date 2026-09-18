@@ -140,6 +140,7 @@ class _ScriptedPlanProvider:
         forced_scope_file: str | None = None,
         critic_payload: dict[str, Any] | None = None,
         forced_phase_risk_tier: str | None = None,
+        leading_diagnostic_phase: bool = False,
     ) -> None:
         self.calls: list[ModelCompletionRequest] = []
         self._cover_criterion = cover_criterion
@@ -147,6 +148,7 @@ class _ScriptedPlanProvider:
         self._forced_scope_file = forced_scope_file
         self._critic_payload = critic_payload
         self._forced_phase_risk_tier = forced_phase_risk_tier
+        self._leading_diagnostic_phase = leading_diagnostic_phase
 
     def complete(self, request: ModelCompletionRequest) -> ModelCompletionResult:
         self.calls.append(request)
@@ -197,6 +199,38 @@ class _ScriptedPlanProvider:
                 "rollback_deadline_seconds": 600,
             }
         ]
+        if self._leading_diagnostic_phase:
+            # A valid, correctly-ordered plan: a cheap diagnostic phase
+            # BEFORE the implementation phase, carrying `rollback_command:
+            # None` -- which S02.70 explicitly permits for a diagnostic
+            # phase (only implementation phases require one).
+            # The implementation phase above is sequence=1, so shift it to 2
+            # and put this cheap diagnostic phase first at sequence=1
+            # (`ExecutionPhase.sequence` is `Field(ge=1)`).
+            for existing in phases:
+                existing["sequence"] = cast("int", existing["sequence"]) + 1
+            phases.insert(
+                0,
+                {
+                    "phase_id": "phase-0-diag",
+                    "sequence": 1,
+                    "phase_kind": "diagnostic",
+                    **(
+                        {"risk_tier": "experiment_config"}
+                        if self._forced_phase_risk_tier is None
+                        else {"risk_tier": self._forced_phase_risk_tier}
+                    ),
+                    "treatment": {
+                        "variable": "profiling_level",
+                        "before": "disabled",
+                        "after": "detailed",
+                    },
+                    "done_criteria": done_criteria,
+                    "rollback_command": None,
+                    "rollback_trigger": "diagnosis is inconclusive",
+                    "rollback_deadline_seconds": 300,
+                },
+            )
         if self._bad_phase_order:
             # A diagnostic (cheap, reversible) phase sequenced *after* the
             # implementation (expensive) phase above -- exactly the
@@ -711,6 +745,94 @@ def test_s02_critic_explicit_approval_with_ungrounded_chatter_still_passes(
         result for result in quality.results if result.dimension == "critic_approved"
     )
     assert critic_result.passed is True
+
+
+def test_s02_critic_demanding_rollback_on_a_diagnostic_phase_is_a_false_positive(
+    tmp_path: Any,
+) -> None:
+    """S02.70 -- this platform's only rollback rule -- requires a
+    `rollback_command` for implementation phases ONLY; a diagnostic phase is
+    read-only/reversible and explicitly may carry `rollback_command=None`.
+    A critic that rejects a plan solely because a *diagnostic* phase has no
+    rollback is inventing a stricter rule than the system enforces, which
+    reliably blocked otherwise-valid plans at random (observed in a real
+    end-to-end CLI run). That single, provably-wrong reason must not stand.
+    """
+
+    store = _MemoryArtifactStore()
+    refs = _seed_case(tmp_path, store, risk_ceiling="prompt")
+    model = _ScriptedPlanProvider(
+        leading_diagnostic_phase=True,
+        critic_payload={
+            "omissions": [],
+            "concerns": [
+                "Phase phase-0-diag has rollback=None while making modifications "
+                "under a diagnostic risk tier."
+            ],
+            "approved": False,
+        },
+    )
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
+    for node_id in S02_NODE_IDS:
+        state = _advance(runtime, node_id, state)
+
+    assert _current_route(state, "S02.81") == "continue"
+    assert state["s02_critique"]["approved"] is True
+    # The false positive is reported as ignored, never as an actionable concern.
+    assert state["s02_critique"]["concerns"] == []
+    assert state["s02_critique"]["ignored_ungrounded"] == [
+        "Phase phase-0-diag has rollback=None while making modifications "
+        "under a diagnostic risk tier."
+    ]
+    quality = _model_from_ref(store, _ref_by_type(state, "PlanQualityReport"), PlanQualityReport)
+    critic_result = next(
+        result for result in quality.results if result.dimension == "critic_approved"
+    )
+    assert critic_result.passed is True
+
+
+def test_s02_critic_rejection_stands_when_any_real_reason_accompanies_the_false_positive(
+    tmp_path: Any,
+) -> None:
+    """The diagnostic-rollback exemption is deliberately narrow: it only
+    discards a rejection whose EVERY reason is that provably-wrong demand.
+    A single genuine concern alongside it keeps the rejection intact."""
+
+    store = _MemoryArtifactStore()
+    refs = _seed_case(tmp_path, store, risk_ceiling="prompt")
+    real_concern = "task-1 targets src/checkout/service.go with no dependency on the diagnostic."
+    model = _ScriptedPlanProvider(
+        leading_diagnostic_phase=True,
+        forced_scope_file="src/checkout/service.go",
+        critic_payload={
+            "omissions": [],
+            "concerns": [
+                "Phase phase-0-diag has rollback=None under a diagnostic risk tier.",
+                real_concern,
+            ],
+            "approved": False,
+        },
+    )
+    runtime = build_s02_runtime(ports=_ports(store, model=model))
+    state = _state(refs)
+
+    route = "revision"
+    attempts = 0
+    for node_id in ("S02.10", "S02.20"):
+        state = _advance(runtime, node_id, state)
+    while route == "revision" and attempts < 5:
+        for node_id in ("S02.30", "S02.40", "S02.50", "S02.60", "S02.70", "S02.80"):
+            state = _advance(runtime, node_id, state)
+        state = _advance(runtime, "S02.81", state)
+        route = _current_route(state, "S02.81")
+        attempts += 1
+
+    assert route == "rejected"
+    assert state["s02_critique"]["approved"] is False
+    # The real concern survives as actionable; only the false positive is dropped.
+    assert state["s02_critique"]["concerns"] == [real_concern]
 
 
 def test_s02_requires_approval_for_code_risk_strategy(tmp_path: Any) -> None:
