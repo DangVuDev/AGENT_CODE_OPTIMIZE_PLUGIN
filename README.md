@@ -19,6 +19,7 @@ so rather than guessing.
 - [Architecture at a glance](#architecture-at-a-glance)
 - [Quick start](#quick-start)
 - [Running the pipeline](#running-the-pipeline)
+- [Source codebase prerequisites](#source-codebase-prerequisites)
 - [Configuration](#configuration)
 - [Repository layout](#repository-layout)
 - [Development workflow](#development-workflow)
@@ -188,16 +189,103 @@ profile so A2 measures the real workload rather than just a command exit code:
 The evaluation command must print metric values the platform can parse; see
 `application/metrics/` for the supported shapes.
 
-### Key flags
+### Full flag reference
+
+Run `scripts/run.py <tag> --help` for the live, authoritative list — this table
+mirrors it. `lane1`, `lane1-plan` and `full` accept every flag below (all are
+handled by the same `_add_lane1_args`); `lane2` only accepts `--feature-id`,
+`--case-id` and `--actor-id`.
+
+**Positional**
+
+| Argument | Required | Meaning |
+|---|---|---|
+| `repo_path` | yes | Path to the target codebase (must exist; resolved to an absolute path) |
+
+**Criterion (all required for `lane1`/`lane1-plan`/`full`)**
+
+| Flag | Required | Meaning |
+|---|---|---|
+| `--feature-id` | yes | Feature to optimize, e.g. `checkout` |
+| `--metric` | yes | Primary `metric_id`, e.g. `p95_latency_ms`, `unit_command_result`. Only command-exit-code metrics (`unit_command_result`, `lint_command_result`) are reliably collectible under `legacy_discovery` — anything else needs `docker_compose` |
+| `--direction` | yes | `minimize` \| `maximize` \| `target` |
+| `--target` | yes | Target value for `--metric` (must be ≥ 0) |
+| `--unit` | yes | Unit for `--metric`, e.g. `ms`, `exit_code` |
+| `--guardrail-metric-id` | no | Metric A1.62's correctness guardrail checks (default `unit_command_result`). For `--execution-profile docker_compose` this **must** name one of `--eval-metrics` |
+| `--workload-id` | no | Default: `<feature-id>-workload` |
+| `--environment-id` | no | Default: `local-dev` |
+| `--case-id` | no | Default: `OPT-CLI-1` |
+| `--actor-id` | no | Default: `cli-user` |
+| `--maximum-worker-seconds` | no | Per-command execution budget |
+| `--deadline-seconds` | no | Overall case deadline |
+| `--trace-node-outputs` | no | Print every node's state update as JSON as it runs — the best debugging tool here |
+
+**Commands (`legacy_discovery` profile)**
 
 | Flag | Meaning |
 |---|---|
-| `--metric` / `--direction` / `--target` / `--unit` | The primary criterion |
-| `--guardrail-metric-id` | Metric that must not regress (default: `unit_command_result`) |
-| `--execution-profile` | `legacy_discovery` (command exit codes) or `docker_compose` |
-| `--model-provider` / `--model-id` | `auto` (default), `anthropic`, `openai`, `gemini`, `deepseek`, `ollama`, `local-scripted` |
-| `--trace-node-outputs` | Print every node's state update as JSON — the best debugging tool here |
-| `--maximum-worker-seconds` | Per-command budget |
+| `--build-command` | A real `go build ./...`-style build command |
+| `--lint-command` | A real lint command, e.g. `golangci-lint run` |
+| `--type-command` | A real type-check command, if the language has one |
+| `--unit-command` | A real unit-test command, e.g. `go test ./...`, `cargo test` |
+| `--command-id` | Deprecated alias for `--unit-command`; errors if both are given with different values |
+
+At least one of `--build-command`/`--lint-command`/`--type-command`/
+`--unit-command` (or the deprecated `--command-id`) is **required** when
+`--execution-profile legacy_discovery` (the default) — A2's own convention
+detection only recognizes Python's pytest/ruff/mypy. Unused under
+`docker_compose`.
+
+**Execution profile**
+
+| Flag | Meaning |
+|---|---|
+| `--execution-profile` | `legacy_discovery` (default, command exit codes) \| `docker_compose` (a real running workload) |
+
+**`docker_compose` profile only** (all required together when the profile is selected)
+
+| Flag | Required | Meaning |
+|---|---|---|
+| `--compose-file` | yes | Path to the Compose file, relative to `repo_path` |
+| `--eval-service` | yes | The Compose service the evaluation command runs against |
+| `--eval-command` | yes | The evaluation command and its arguments (space-separated, consumes the rest of the flag's tokens) |
+| `--eval-metrics` | yes | Comma-separated metric ids the evaluation command reports — `--guardrail-metric-id` must be one of them |
+| `--eval-id` | no | Default: `<feature-id>-evaluation` |
+| `--eval-working-dir` | no | Working directory inside the service for the eval command |
+| `--eval-repetitions` | no | Repeat count for the measurement |
+| `--eval-warmup` | no | Warmup runs excluded from the measurement |
+| `--eval-timeout` | no | Per-repetition timeout in seconds (default 300) |
+| `--application-services` | no | Compose services that make up "the application" (default: just `--eval-service`) |
+
+The evaluation command must print metric values in a shape
+`application/metrics/` can parse.
+
+**Model runtime**
+
+| Flag | Meaning |
+|---|---|
+| `--model-provider` | `auto` (default) \| `anthropic` \| `openai` \| `gemini` \| `deepseek` \| `ollama` \| `local-scripted` |
+| `--model-id` | Provider-specific model id, e.g. `gemini-3.6-flash` |
+| `--model-base-url` | Base URL for OpenAI-compatible providers (ollama/deepseek) |
+| `--model-provider-order` | Comma-separated provider order for `auto` mode, e.g. `gemini,openai,ollama` — overrides `OPTIMIZER_MODEL_PROVIDER_ORDER` for this run |
+
+`auto` walks the order and picks the first provider with a usable credential
+(or a reachable local Ollama), once, at startup — it does not switch providers
+mid-run after a failed call. `local-scripted` forces the deterministic,
+zero-cost stand-in even when real credentials are present (useful for smoke
+tests).
+
+**`lane2` (B1 discovery only) — a separate, smaller flag set**
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--feature-id` | `discovered-feature` | Feature the discovery scan is seeded against |
+| `--case-id` | `OPT-DISCOVERY-1` | Case identifier |
+| `--actor-id` | `cli-user` | Actor identifier |
+
+No criterion, command, execution-profile or model-runtime flags apply to
+`lane2` — see [Known limitations](#known-limitations) for why it detects
+nothing on most real repositories today.
 
 ### Reading the output
 
@@ -213,6 +301,82 @@ A run prints one section per stage. The important lines:
 
 Exit code 0 means the workflow ran correctly, whatever it decided. A traceback
 means a real defect.
+
+---
+
+## Source codebase prerequisites
+
+`repo_path` is a real, local directory on disk — the platform never clones a
+remote URL for you. What that directory needs depends on how far you run the
+pipeline.
+
+### Always required
+
+- `repo_path` must exist and be a directory (A1.30 rejects a missing or
+  non-directory path).
+- For `lane1-plan`/`full`, every file path a task references must be a real,
+  existing path under `repo_path` unless the task explicitly marks
+  `proposed_creation: true` — S02.81's `paths_resolve` gate rejects an invented
+  path, and this is the most common reason a plan is redrafted.
+
+### Strongly recommended: run it from the exact git root
+
+A1.30 only records `git_revision`/`dirty`/`untracked_count` when `repo_path`
+**is** the repository's git top-level (`git rev-parse --show-toplevel` resolves
+to exactly `repo_path`) — not a subdirectory of a larger repo, and not a path
+outside any repo. This is deliberate: git walks parent directories by default,
+and a nested path must never silently inherit an unrelated ancestor repo's
+identity. `repo_path` does not have to be a git repository at all (the
+platform still runs), but if it is, point it at the real root or you lose
+revision/dirty-state provenance in every sealed artifact.
+
+A `rollback_command` such as `git checkout -- <path>` (see "For `full`" below)
+also only makes sense when run from the real repo root.
+
+### For `--execution-profile legacy_discovery` (the default)
+
+At least one of `--build-command`/`--lint-command`/`--type-command`/
+`--unit-command` is required, and it is **your job to supply a command that
+runs in `repo_path`** — the platform does not install dependencies or infer a
+toolchain for you. A2.30's own automatic convention detection is Python-only
+and looks for:
+
+| It looks for | To decide |
+|---|---|
+| `pyproject.toml` / `package.json` / `go.mod` / `Cargo.toml` | The project has a real manifest at all |
+| `tool.pytest.ini_options` (or `setup.cfg`/`tox.ini` equivalents) | A pytest convention exists |
+| `tool.ruff` (or `ruff.toml`/`.ruff.toml`) | A ruff convention exists |
+| `tool.mypy` (or `mypy.ini`/`.mypy.ini`) | A mypy convention exists |
+| `requirements*.txt` | A package is a real pinned dependency (exact-token match, so `pytest-cov` never false-positives on `pytest-covfefe`) |
+
+For any other language (Go, Node, Rust, ...) you must pass at least one
+command flag explicitly (or the deprecated `--command-id`) — the CLI rejects
+the invocation up front if none is given, since the convention detector will
+not find a non-Python toolchain on its own.
+
+### For `--execution-profile docker_compose`
+
+- `--compose-file` must exist relative to `repo_path` and define
+  `--eval-service` (and every name in `--application-services`).
+- `docker compose` must be installed and runnable by the same user executing
+  `scripts/run.py` — A2 shells out to it directly.
+- `--eval-command`, run inside `--eval-service`, must print metric values in a
+  shape `application/metrics/` recognizes, and must report every id you list
+  in `--eval-metrics` (including whichever one you named as
+  `--guardrail-metric-id`).
+
+### For `full` (S03 implementation)
+
+- S03.20 materializes an **isolated copy** of `repo_path` before anything
+  writes to it — your working tree is never modified directly. That copy needs
+  enough free disk space for a full checkout and is cleaned up on completion.
+- If a phase's treatment names a `rollback_command` (S02.70), it must be a
+  real, literal command valid from the repo root, since S06 may actually
+  invoke it on a REVERT.
+- Nothing outside the plan's declared `allowed_write_paths` may be touched —
+  S03.60 enforces this at both the file and, for Python files with declared
+  `symbols`, the AST symbol level. An out-of-scope change rejects the whole
+  patch (BR-03-003); it is never silently trimmed.
 
 ---
 
