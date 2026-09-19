@@ -287,6 +287,37 @@ No criterion, command, execution-profile or model-runtime flags apply to
 `lane2` — see [Known limitations](#known-limitations) for why it detects
 nothing on most real repositories today.
 
+### Can one command optimize for multiple criteria?
+
+**At the data layer, yes — S01's ranking is multi-criterion by design.**
+`ManualCasePayload.criteria` accepts up to 32 `CriterionInput` entries, each
+with its own `metric_id`/`direction`/`target`/`unit`/`weight`. S01.40 sums
+every criterion's `weight`, normalizes each one against that sum
+(`weight / total_weight`), and scores a strategy by its weighted benefit
+across *all* of them — one criterion is the common case this scores, not a
+hard limit the model was built around (see `a1_61_define_least_one_criterion_
+metric_direction_target.py`'s own docstring: "more than one is the general
+case").
+
+**At the CLI layer, no — `scripts/run.py` only exposes one.** `--metric` /
+`--direction` / `--target` / `--unit` populate `ManualCasePayload`'s four
+single-criterion shorthand fields, not the `criteria` list, and there is no
+`--criteria` flag or repeatable `--metric` to add a second one. When
+`ManualCasePayload.criteria` is empty (always true from this CLI today), A1.61
+builds exactly one `Criterion` with `criterion_id="primary"` and
+`weight=1.0`.
+
+To actually run a multi-criterion case today you have two options:
+
+1. Construct `ManualCasePayload` directly in Python (or JSON fed to your own
+   script) with a populated `criteria` list, and seed it the same way
+   `scripts/run.py`'s `_seed_payload` does — see `scripts/run.py` for the
+   exact pattern.
+2. Ask for a `--criteria` flag to be added to `scripts/run.py` (e.g. accepting
+   repeated `metric:direction:target:unit:weight` groups or a JSON blob) —
+   this is a real, small gap in the CLI, not a limitation of the underlying
+   platform.
+
 ### Reading the output
 
 A run prints one section per stage. The important lines:
