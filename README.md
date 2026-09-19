@@ -339,75 +339,186 @@ means a real defect.
 
 `repo_path` is a real, local directory on disk — the platform never clones a
 remote URL for you. What that directory needs depends on how far you run the
-pipeline.
+pipeline. Every example below points at a real directory in this repository,
+and every command has actually been run.
 
-### Always required
+### 1. It must exist and be a directory
 
-- `repo_path` must exist and be a directory (A1.30 rejects a missing or
-  non-directory path).
-- For `lane1-plan`/`full`, every file path a task references must be a real,
-  existing path under `repo_path` unless the task explicitly marks
-  `proposed_creation: true` — S02.81's `paths_resolve` gate rejects an invented
-  path, and this is the most common reason a plan is redrafted.
+```bash
+.venv/Scripts/python.exe scripts/run.py lane1 fixtures/does-not-exist \
+    --feature-id x --metric unit_command_result --direction minimize \
+    --target 0 --unit exit_code --unit-command "true"
+# repo path does not exist: D:\OptimizeCode\fixtures\does-not-exist
+```
 
-### Strongly recommended: run it from the exact git root
+`scripts/run.py` checks this itself, before touching the graph — a typo in the
+path fails immediately with that exact message, not a stack trace.
+
+### 2. For `lane1-plan`/`full`, task file paths must be real
+
+S02.81's `paths_resolve` gate rejects any `task.files` entry that does not
+exist under `repo_path`, unless the task sets `proposed_creation: true`. This
+is the single most common reason a plan gets redrafted — the generator model
+hallucinated a plausible-looking path instead of using one from the real
+repository listing it was given. It is not something you configure; it is
+listed here so a `[FAIL] paths_resolve: ... does not exist` message in the
+output is recognizable for what it is (see
+[Debugging checklist](#debugging-checklist)).
+
+### 3. Run it from the exact git root — a real example of getting this wrong
 
 A1.30 only records `git_revision`/`dirty`/`untracked_count` when `repo_path`
-**is** the repository's git top-level (`git rev-parse --show-toplevel` resolves
-to exactly `repo_path`) — not a subdirectory of a larger repo, and not a path
-outside any repo. This is deliberate: git walks parent directories by default,
+**is** the repository's own git top-level
+(`git -C repo_path rev-parse --show-toplevel` resolves to exactly `repo_path`)
+— never a subdirectory of a larger repo, and never a path that isn't inside
+any repo at all. This is deliberate: git walks parent directories by default,
 and a nested path must never silently inherit an unrelated ancestor repo's
-identity. `repo_path` does not have to be a git repository at all (the
-platform still runs), but if it is, point it at the real root or you lose
-revision/dirty-state provenance in every sealed artifact.
+identity.
 
-A `rollback_command` such as `git checkout -- <path>` (see "For `full`" below)
-also only makes sense when run from the real repo root.
+This repository contains both cases side by side:
 
-### For `--execution-profile legacy_discovery` (the default)
+```bash
+# WRONG: fixtures/go-checkout has no .git of its own -- it is a subdirectory
+# of this repository's own git tree, so its "git root" resolves to the
+# parent OptimizeCode checkout, not to fixtures/go-checkout itself.
+$ git -C fixtures/go-checkout rev-parse --show-toplevel
+D:/OptimizeCode
+# -> A1.30 seals LocalSourceIdentity with git_revision=null, dirty=false --
+#    not because the repo has no history, but because this path isn't its root.
 
-At least one of `--build-command`/`--lint-command`/`--type-command`/
-`--unit-command` is required, and it is **your job to supply a command that
-runs in `repo_path`** — the platform does not install dependencies or infer a
-toolchain for you. A2.30's own automatic convention detection is Python-only
-and looks for:
+# RIGHT: codebases/realworld-node has its own .git and IS its own root.
+$ git -C codebases/realworld-node rev-parse --show-toplevel
+D:/OptimizeCode/codebases/realworld-node
+# -> git_revision/dirty/untracked_count are all populated from the real repo.
+```
+
+`repo_path` does not have to be a git repository at all — the platform still
+runs a case against a plain directory — but if it is one, point `repo_path` at
+its real root or every sealed artifact for that case silently loses
+revision/dirty-state provenance. A `rollback_command` such as
+`git checkout -- <path>` (see "legacy_discovery" below) also only makes sense
+run from the real repo root.
+
+### 4. `legacy_discovery` (the default): supply your own commands for non-Python repos
+
+`--execution-profile legacy_discovery` requires at least one of
+`--build-command`/`--lint-command`/`--type-command`/`--unit-command` (or the
+deprecated `--command-id`), and **you** supply a command that actually runs
+inside `repo_path` — the platform does not install dependencies or infer a
+toolchain. A2.30's own automatic convention detection only recognizes Python,
+by looking for these exact files/keys:
 
 | It looks for | To decide |
 |---|---|
 | `pyproject.toml` / `package.json` / `go.mod` / `Cargo.toml` | The project has a real manifest at all |
-| `tool.pytest.ini_options` (or `setup.cfg`/`tox.ini` equivalents) | A pytest convention exists |
-| `tool.ruff` (or `ruff.toml`/`.ruff.toml`) | A ruff convention exists |
-| `tool.mypy` (or `mypy.ini`/`.mypy.ini`) | A mypy convention exists |
+| `[tool.pytest.ini_options]` in `pyproject.toml` (or `[tool:pytest]` in `setup.cfg`, or `[pytest]` in `tox.ini`) | A pytest convention exists |
+| `[tool.ruff]` in `pyproject.toml` (or `ruff.toml`/`.ruff.toml`) | A ruff convention exists |
+| `[tool.mypy]` in `pyproject.toml` (or `mypy.ini`/`.mypy.ini`) | A mypy convention exists |
 | `requirements*.txt` | A package is a real pinned dependency (exact-token match, so `pytest-cov` never false-positives on `pytest-covfefe`) |
 
-For any other language (Go, Node, Rust, ...) you must pass at least one
-command flag explicitly (or the deprecated `--command-id`) — the CLI rejects
-the invocation up front if none is given, since the convention detector will
-not find a non-Python toolchain on its own.
+**Example: a Python repository needs no command flags at all.**
 
-### For `--execution-profile docker_compose`
+```bash
+.venv/Scripts/python.exe scripts/run.py lane1 fixtures/go-checkout \
+    --feature-id checkout \
+    --metric unit_command_result --direction minimize --target 0 \
+    --unit exit_code --unit-command "go test ./..."
+```
+
+Here `--unit-command` is required because `fixtures/go-checkout` has a
+`go.mod`, not a `pyproject.toml` — A2.30's detector cannot see a Go toolchain.
+Omitting every command flag on a Go/Node/Rust/... repository fails immediately
+at argument-parsing time:
+
+```bash
+.venv/Scripts/python.exe scripts/run.py lane1 fixtures/go-checkout \
+    --feature-id checkout \
+    --metric unit_command_result --direction minimize --target 0 --unit exit_code
+# run.py: error: at least one of --build-command/--lint-command/
+# --type-command/--unit-command (or the deprecated --command-id) is
+# required for --execution-profile legacy_discovery
+```
+
+### 5. `docker_compose`: your eval command must print exactly one JSON line
 
 - `--compose-file` must exist relative to `repo_path` and define
   `--eval-service` (and every name in `--application-services`).
-- `docker compose` must be installed and runnable by the same user executing
+- `docker compose` must be installed and runnable by the user running
   `scripts/run.py` — A2 shells out to it directly.
-- `--eval-command`, run inside `--eval-service`, must print metric values in a
-  shape `application/metrics/` recognizes, and must report every id you list
-  in `--eval-metrics` (including whichever one you named as
-  `--guardrail-metric-id`).
+- `--eval-command`, run inside `--eval-service`, must write a single JSON
+  object to stdout matching `contracts.evaluation.EvaluationOutput`: a
+  `feature_id`, and a `metrics` object with at least one numeric/boolean value
+  — naming every id in `--eval-metrics`, including whichever one you passed as
+  `--guardrail-metric-id`.
 
-### For `full` (S03 implementation)
+This is a real evaluator from this repository
+(`codebases/realworld-node/scripts/evaluate-tags.mjs`), printing exactly the
+shape A2 requires:
+
+```js
+const result = {
+  schema_version: '1.0',
+  feature_id: 'tags',
+  metrics: {
+    p95_latency_ms: p95LatencyMs,
+    correctness,
+  },
+  samples: { latency_ms: durationsMs },
+  metadata: { requests_per_evaluation: REPETITIONS, language: 'node' },
+};
+process.stdout.write(JSON.stringify(result) + '\n');
+```
+
+Which stdout looks like:
+
+```json
+{"schema_version":"1.0","feature_id":"tags","metrics":{"p95_latency_ms":6.4,"correctness":1},"samples":{"latency_ms":[5.1,6.4,7.2]},"metadata":{"requests_per_evaluation":3,"language":"node"}}
+```
+
+Driven by the matching CLI invocation:
+
+```bash
+.venv/Scripts/python.exe scripts/run.py full codebases/realworld-node \
+    --feature-id tags \
+    --metric p95_latency_ms --direction minimize --target 5 --unit ms \
+    --guardrail-metric-id correctness \
+    --workload-id tags-http --environment-id docker-node-lts \
+    --build-command "npx nx build api" \
+    --lint-command "npx nx lint api" \
+    --unit-command "npx nx test api" \
+    --execution-profile docker_compose \
+    --compose-file docker-compose.yaml \
+    --eval-id tags-http --eval-service app \
+    --eval-command node scripts/evaluate-tags.mjs \
+    --eval-metrics p95_latency_ms,correctness \
+    --eval-repetitions 3 --eval-warmup 1 --eval-timeout 60 \
+    --application-services app,db \
+    --model-provider gemini --model-id gemini-3.6-flash
+```
+
+### 6. `full` (S03 implementation)
 
 - S03.20 materializes an **isolated copy** of `repo_path` before anything
   writes to it — your working tree is never modified directly. That copy needs
   enough free disk space for a full checkout and is cleaned up on completion.
 - If a phase's treatment names a `rollback_command` (S02.70), it must be a
   real, literal command valid from the repo root, since S06 may actually
-  invoke it on a REVERT.
+  invoke it on a REVERT — e.g.
+  `git checkout -- src/app/routes/tag/tag.service.ts`.
 - Nothing outside the plan's declared `allowed_write_paths` may be touched —
   S03.60 enforces this at both the file and, for Python files with declared
-  `symbols`, the AST symbol level. An out-of-scope change rejects the whole
-  patch (BR-03-003); it is never silently trimmed.
+  `symbols`, the AST symbol level. **A real example of the failure mode**: a
+  task authorized to edit `src/tags.service.ts` but whose model edit also
+  touched `src/tags.controller.ts` produces exactly this, and the whole patch
+  is rejected, not just the extra file:
+
+  ```
+  [FAIL] scope: write to 'src/tags.controller.ts' is outside this phase's
+  authorized paths: ['src/tags.service.ts']
+  ```
+
+  BR-03-003 makes this non-negotiable: an out-of-scope change is never
+  silently trimmed back to what was authorized.
 
 ---
 
