@@ -202,16 +202,17 @@ handled by the same `_add_lane1_args`); `lane2` only accepts `--feature-id`,
 |---|---|---|
 | `repo_path` | yes | Path to the target codebase (must exist; resolved to an absolute path) |
 
-**Criterion (all required for `lane1`/`lane1-plan`/`full`)**
+**Criterion — pass exactly one of these two forms**
 
 | Flag | Required | Meaning |
 |---|---|---|
 | `--feature-id` | yes | Feature to optimize, e.g. `checkout` |
-| `--metric` | yes | Primary `metric_id`, e.g. `p95_latency_ms`, `unit_command_result`. Only command-exit-code metrics (`unit_command_result`, `lint_command_result`) are reliably collectible under `legacy_discovery` — anything else needs `docker_compose` |
-| `--direction` | yes | `minimize` \| `maximize` \| `target` |
-| `--target` | yes | Target value for `--metric` (must be ≥ 0) |
-| `--unit` | yes | Unit for `--metric`, e.g. `ms`, `exit_code` |
-| `--guardrail-metric-id` | no | Metric A1.62's correctness guardrail checks (default `unit_command_result`). For `--execution-profile docker_compose` this **must** name one of `--eval-metrics` |
+| `--metric` | one form | Primary `metric_id`, e.g. `p95_latency_ms`, `unit_command_result`. Only command-exit-code metrics (`unit_command_result`, `lint_command_result`) are reliably collectible under `legacy_discovery` — anything else needs `docker_compose` |
+| `--direction` | one form | `minimize` \| `maximize` \| `target` |
+| `--target` | one form | Target value for `--metric` (must be ≥ 0) |
+| `--unit` | one form | Unit for `--metric`, e.g. `ms`, `exit_code` |
+| `--criteria` | one form, repeatable | `metric:direction:target:unit[:weight]` — the general, multi-criterion form. See [Multi-criterion optimization](#multi-criterion-optimization) |
+| `--guardrail-metric-id` | no | Metric A1.62's correctness guardrail checks (default `unit_command_result`). For `--execution-profile docker_compose` this **must** name one of `--eval-metrics`. Independent of `--criteria`/the shorthand — always exactly one guardrail |
 | `--workload-id` | no | Default: `<feature-id>-workload` |
 | `--environment-id` | no | Default: `local-dev` |
 | `--case-id` | no | Default: `OPT-CLI-1` |
@@ -287,36 +288,71 @@ No criterion, command, execution-profile or model-runtime flags apply to
 `lane2` — see [Known limitations](#known-limitations) for why it detects
 nothing on most real repositories today.
 
-### Can one command optimize for multiple criteria?
+### Multi-criterion optimization
 
-**At the data layer, yes — S01's ranking is multi-criterion by design.**
-`ManualCasePayload.criteria` accepts up to 32 `CriterionInput` entries, each
-with its own `metric_id`/`direction`/`target`/`unit`/`weight`. S01.40 sums
-every criterion's `weight`, normalizes each one against that sum
-(`weight / total_weight`), and scores a strategy by its weighted benefit
-across *all* of them — one criterion is the common case this scores, not a
-hard limit the model was built around (see `a1_61_define_least_one_criterion_
-metric_direction_target.py`'s own docstring: "more than one is the general
-case").
+**Yes — this is the general case the design is built around, not a special
+mode.** `ManualCasePayload.criteria` accepts up to 32 criteria, each with its
+own `metric_id`/`direction`/`target`/`unit`/`weight`. S01.40 sums every
+criterion's `weight`, normalizes each one against that sum
+(`weight / total_weight`), and ranks strategies by benefit weighted across
+*all* of them — a single criterion is just the `weight=1.0` degenerate case
+(see `a1_61_define_least_one_criterion_metric_direction_target.py`'s own
+docstring: "more than one is the general case").
 
-**At the CLI layer, no — `scripts/run.py` only exposes one.** `--metric` /
-`--direction` / `--target` / `--unit` populate `ManualCasePayload`'s four
-single-criterion shorthand fields, not the `criteria` list, and there is no
-`--criteria` flag or repeatable `--metric` to add a second one. When
-`ManualCasePayload.criteria` is empty (always true from this CLI today), A1.61
-builds exactly one `Criterion` with `criterion_id="primary"` and
-`weight=1.0`.
+`scripts/run.py` exposes this directly through a repeatable `--criteria` flag:
 
-To actually run a multi-criterion case today you have two options:
+```
+--criteria METRIC:DIRECTION:TARGET:UNIT[:WEIGHT]
+```
 
-1. Construct `ManualCasePayload` directly in Python (or JSON fed to your own
-   script) with a populated `criteria` list, and seed it the same way
-   `scripts/run.py`'s `_seed_payload` does — see `scripts/run.py` for the
-   exact pattern.
-2. Ask for a `--criteria` flag to be added to `scripts/run.py` (e.g. accepting
-   repeated `metric:direction:target:unit:weight` groups or a JSON blob) —
-   this is a real, small gap in the CLI, not a limitation of the underlying
-   platform.
+- `DIRECTION` is `minimize` / `maximize` / `target`.
+- `WEIGHT` defaults to `1.0` and must be `> 0`. Only the *ratio* between
+  criteria matters — S01.40 normalizes by the sum, so `2:1` and `20:10`
+  rank identically.
+- Every occurrence must name a distinct `METRIC` (S01.40/A1.61 key evidence
+  and scoring off the metric id, so a repeat would collide).
+- `--criteria` and the single-criterion shorthand
+  (`--metric`/`--direction`/`--target`/`--unit`) are **mutually exclusive** —
+  pass exactly one form. Passing neither, or both, fails at argument-parsing
+  time with a specific error.
+
+**A real, run example** — two criteria, latency weighted twice as heavily as
+correctness, against this repository's own `codebases/realworld-node` fixture:
+
+```bash
+.venv/Scripts/python.exe scripts/run.py lane1-plan codebases/realworld-node \
+    --feature-id tags \
+    --criteria p95_latency_ms:minimize:5:ms:2 \
+    --criteria correctness:target:0:exit_code:1 \
+    --guardrail-metric-id correctness \
+    --workload-id tags-http --environment-id docker-node-lts \
+    --build-command "npx nx build api" \
+    --lint-command "npx nx lint api" \
+    --unit-command "npx nx test api" \
+    --execution-profile docker_compose \
+    --compose-file docker-compose.yaml \
+    --eval-id tags-http --eval-service app \
+    --eval-command node scripts/evaluate-tags.mjs \
+    --eval-metrics p95_latency_ms,correctness \
+    --eval-repetitions 3 --eval-warmup 1 --eval-timeout 60 \
+    --application-services app,db \
+    --model-provider gemini --model-id gemini-3.6-flash
+```
+
+Which prints, before A1 runs:
+
+```
+Target codebase: D:\OptimizeCode\codebases\realworld-node
+Feature: tags
+Criteria (2):
+  - p95_latency_ms minimize 5.0ms (weight=2.0)
+  - correctness target 0.0exit_code (weight=1.0)
+```
+
+`--guardrail-metric-id` is independent of `--criteria`: there is always
+exactly one guardrail (A1.62), never a list, even when the primary criteria
+are plural. It must still name one of `--eval-metrics` under
+`docker_compose`, same as the single-criterion form.
 
 ### Reading the output
 
