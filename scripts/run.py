@@ -86,7 +86,7 @@ from production_optimizer.application.a2_worker_capabilities import (
     build_local_command_capabilities,
 )
 from production_optimizer.application.resume import resume_case
-from production_optimizer.contracts.a1 import ManualCasePayload
+from production_optimizer.contracts.a1 import CriterionInput, ManualCasePayload
 from production_optimizer.contracts.a2 import (
     BaselineSnapshot,
     EvidenceQualityReport,
@@ -205,16 +205,42 @@ def _add_lane1_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--feature-id", required=True, help="Feature to optimize (e.g. checkout).")
     parser.add_argument(
         "--metric",
-        required=True,
+        default=None,
         help=(
             "Primary metric_id to optimize (e.g. p95_latency_ms, unit_command_result). "
             "Only command-exit-code-based metrics (unit_command_result, lint_command_result) "
-            "are reliably collectible today -- see CLAUDE.md's Known Limitations."
+            "are reliably collectible today -- see CLAUDE.md's Known Limitations. Required "
+            "unless --criteria is given instead (single-criterion shorthand vs. the general "
+            "multi-criterion form -- see --criteria's own help)."
         ),
     )
-    parser.add_argument("--direction", required=True, choices=["minimize", "maximize", "target"])
-    parser.add_argument("--target", type=float, required=True, help="Target value for --metric.")
-    parser.add_argument("--unit", required=True, help="Unit for --metric (e.g. ms, exit_code).")
+    parser.add_argument(
+        "--direction", default=None, choices=["minimize", "maximize", "target"]
+    )
+    parser.add_argument(
+        "--target", type=float, default=None, help="Target value for --metric."
+    )
+    parser.add_argument("--unit", default=None, help="Unit for --metric (e.g. ms, exit_code).")
+    parser.add_argument(
+        "--criteria",
+        action="append",
+        default=None,
+        metavar="METRIC:DIRECTION:TARGET:UNIT[:WEIGHT]",
+        help=(
+            "One optimization criterion, repeatable for a real multi-criterion case -- "
+            "the general form BR-A1-002/S01.40 are built around (see "
+            "ManualCasePayload.criteria's docstring: 'more than one is the general case'). "
+            "Each occurrence is 'metric_id:direction:target:unit' or "
+            "'metric_id:direction:target:unit:weight' (weight defaults to 1.0, must be > 0). "
+            "direction is minimize/maximize/target. S01.40 normalizes every criterion's "
+            "weight against their sum before ranking strategies, so only relative weight "
+            "matters, not its absolute value. Mutually exclusive with "
+            "--metric/--direction/--target/--unit -- pass one form or the other, not both. "
+            "Example: --criteria p95_latency_ms:minimize:5:ms:2 "
+            "--criteria correctness:target:0:exit_code:1 weights the latency criterion "
+            "twice as heavily as correctness."
+        ),
+    )
     parser.add_argument(
         "--command-id",
         default=None,
@@ -282,10 +308,68 @@ def _add_lane1_args(parser: argparse.ArgumentParser) -> None:
     compose.add_argument("--application-services", default=None)
 
 
+def _parse_criterion(parser: argparse.ArgumentParser, raw: str) -> CriterionInput:
+    parts = raw.split(":")
+    if len(parts) not in (4, 5):
+        parser.error(
+            f"--criteria {raw!r} must be 'metric:direction:target:unit' or "
+            "'metric:direction:target:unit:weight'"
+        )
+    metric_id, direction, target_str, unit, *rest = parts
+    if direction not in ("minimize", "maximize", "target"):
+        parser.error(f"--criteria {raw!r}: direction must be minimize/maximize/target")
+    try:
+        target = float(target_str)
+    except ValueError:
+        parser.error(f"--criteria {raw!r}: target must be a number")
+    weight = 1.0
+    if rest:
+        try:
+            weight = float(rest[0])
+        except ValueError:
+            parser.error(f"--criteria {raw!r}: weight must be a number")
+        if weight <= 0:
+            parser.error(f"--criteria {raw!r}: weight must be > 0")
+    if not metric_id or not unit:
+        parser.error(f"--criteria {raw!r}: metric and unit must not be empty")
+    return CriterionInput(
+        metric_id=metric_id, direction=cast(Any, direction), target=target, unit=unit,
+        weight=weight,
+    )
+
+
 def _validate_lane1_args(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if args.command_id and args.unit_command and args.command_id != args.unit_command:
         parser.error("--command-id and --unit-command disagree -- pass only one")
     args.unit_command = args.unit_command or args.command_id
+
+    shorthand_given = any(
+        value is not None for value in (args.metric, args.direction, args.target, args.unit)
+    )
+    if args.criteria and shorthand_given:
+        parser.error(
+            "--criteria and --metric/--direction/--target/--unit are mutually exclusive -- "
+            "pass one form or the other"
+        )
+    if not args.criteria and not shorthand_given:
+        parser.error(
+            "either --criteria (repeatable, multi-criterion) or all of "
+            "--metric/--direction/--target/--unit (single criterion) is required"
+        )
+    if not args.criteria and not (
+        args.metric and args.direction and args.target is not None and args.unit
+    ):
+        parser.error(
+            "--metric/--direction/--target/--unit are all required when --criteria is not given"
+        )
+    if args.criteria:
+        args.parsed_criteria = [_parse_criterion(parser, raw) for raw in args.criteria]
+        metric_ids = [c.metric_id for c in args.parsed_criteria]
+        if len(metric_ids) != len(set(metric_ids)):
+            parser.error("each --criteria entry must name a distinct metric")
+    else:
+        args.parsed_criteria = []
+
     if args.execution_profile == "legacy_discovery" and not any(
         (args.build_command, args.lint_command, args.type_command, args.unit_command)
     ):
@@ -357,6 +441,7 @@ def _build_payload(args: argparse.Namespace) -> ManualCasePayload:
         direction=args.direction,
         target=args.target,
         unit=args.unit,
+        criteria=args.parsed_criteria,
         workload_id=args.workload_id or f"{args.feature_id}-workload",
         environment_id=args.environment_id,
         execution_profile=args.execution_profile,
@@ -412,7 +497,15 @@ def _run_lane1(
 
     print(f"Target codebase: {args.repo_path}")
     print(f"Feature: {args.feature_id}")
-    print(f"Criterion: {args.metric} {args.direction} {args.target}{args.unit}")
+    if args.parsed_criteria:
+        print(f"Criteria ({len(args.parsed_criteria)}):")
+        for criterion in args.parsed_criteria:
+            print(
+                f"  - {criterion.metric_id} {criterion.direction} "
+                f"{criterion.target}{criterion.unit} (weight={criterion.weight})"
+            )
+    else:
+        print(f"Criterion: {args.metric} {args.direction} {args.target}{args.unit}")
     print()
 
     payload_ref = _seed_payload(store, args.case_id, _build_payload(args))
